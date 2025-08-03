@@ -1,0 +1,212 @@
+import React, { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+
+const LoadingScreen = ({ isVisible, onComplete }) => {
+  const [loadingProgress, setLoadingProgress] = useState(0)
+  const [loadingText, setLoadingText] = useState('Awakening the Cheetah...')
+  const [showingVideo, setShowingVideo] = useState(true)
+
+  const loadingMessages = [
+    'Awakening the Cheetah...',
+    'Calibrating Speed Modules...',
+    'Connecting Neural Networks...',
+    'Initializing Hunt Protocols...',
+    'Preparing Lightning Research...',
+    'Cheetah Ready to Hunt!'
+  ]
+
+  useEffect(() => {
+    if (!isVisible) return
+
+    const progressInterval = setInterval(() => {
+      setLoadingProgress(prev => {
+        const newProgress = prev + Math.random() * 15 + 5 // Variable speed
+        
+        // Update loading text based on progress
+        const messageIndex = Math.floor((newProgress / 100) * loadingMessages.length)
+        if (messageIndex < loadingMessages.length) {
+          setLoadingText(loadingMessages[messageIndex])
+        }
+
+        if (newProgress >= 100) {
+          clearInterval(progressInterval)
+          // Start exit animation after a brief pause
+          setTimeout(() => {
+            setShowingVideo(false)
+            setTimeout(() => onComplete?.(), 800) // Wait for exit animation
+          }, 500)
+          return 100
+        }
+        
+        return newProgress
+      })
+    }, 150) // Fast loading for excitement
+
+    return () => clearInterval(progressInterval)
+  }, [isVisible, onComplete])
+
+  if (!isVisible) return null
+
+  return (
+    <AnimatePresence>
+      {showingVideo && (
+        <motion.div
+          className="fixed inset-0 z-50 bg-black flex items-center justify-center overflow-hidden"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, scale: 1.1 }}
+          transition={{ duration: 0.8, ease: "easeInOut" }}
+        >
+          {/* Cheetah Video Background */}
+          <motion.div
+            className="absolute inset-0 w-full h-full"
+            initial={{ scale: 1.2, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ duration: 1.2, ease: "easeOut" }}
+          >
+            <video
+              className="w-full h-full object-cover"
+              autoPlay
+              muted
+              playsInline
+              loop
+            >
+              <source src="/loader-cheetah.mp4" type="video/mp4" />
+            </video>
+            
+            {/* Epic Overlay Effects */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80" />
+            <div className="absolute inset-0 bg-gradient-radial from-transparent via-cyan-500/10 to-black/50" />
+          </motion.div>
+
+          {/* Animated Particles */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {[...Array(20)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute w-1 h-1 bg-cyan-400 rounded-full opacity-70"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                }}
+                animate={{
+                  y: [-20, -100, -20],
+                  opacity: [0, 1, 0],
+                  scale: [0.5, 1.5, 0.5]
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  delay: i * 0.2,
+                  ease: "easeInOut"
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Loading Content */}
+          <div className="relative z-10 text-center px-8 max-w-md">
+            {/* Main Cheetah Logo */}
+            <motion.div
+              className="mb-8"
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ duration: 1, ease: "easeOut", delay: 0.3 }}
+            >
+              <div className="w-24 h-24 mx-auto bg-gradient-to-r from-cyan-400 to-cyan-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-cyan-400/50">
+                <svg viewBox="0 0 2048 2048" className="w-16 h-16" fill="currentColor">
+                  <path fill="rgb(20,27,67)" d="M 1528.31 408.535 C 1533.58 411.284 1538.72 415.442 1543.89 418.563 C 1568.3 433.309 1593.2 445.903 1622.33 443.814 C 1639.06 442.615 1655.01 441.411 1671.46 445.545 C 1689.17 449.992 1717.5 464.682 1731.56 476.381 C 1738.77 482.379 1739.62 492.4 1743.27 500.521 C 1745.26 504.955 1748.25 508.814 1751.34 512.524 C 1757.61 520.043 1764.46 527.41 1771.96 533.723 C 1778.76 539.445 1800.28 552.338 1803.88 558.43 C 1804.23 572.331 1792 577.01 1785.52 587.437 C 1779.66 596.86 1777.96 609.963 1773.11 620.298 C 1766.2 635.035 1756.53 654.691 1739.84 660.215 C 1727.99 664.134 1716.48 661.171 1705.66 655.965 C 1704.18 644.379 1701 636.714 1691.64 629.062 C 1678.77 618.542 1660.6 612.894 1644.05 614.544 C 1619.54 616.989 1598.32 633.818 1583.4 652.45 C 1564.03 676.619 1561.99 700.249 1565.45 730.164 C 1557.12 721.608 1549.82 712.182 1541.25 703.807 C 1543.72 694.474 1546.85 685.329 1550.62 676.441 C 1562.81 648.274 1586.62 609.642 1616.61 597.869 C 1647.07 585.905 1677.72 595.711 1697.55 621.25 C 1704.09 629.676 1711.55 647.443 1721.91 651.374 C 1728.4 653.856 1735.63 653.466 1741.81 650.303 C 1755.25 643.565 1761.98 628.972 1766.12 615.339 C 1742.79 614.018 1717.19 614.016 1696.31 602.068 C 1683.33 594.639 1674.29 583.23 1658.79 580.055 C 1644.64 577.156 1630.84 581.104 1616.77 582.023 C 1608.92 582.536 1601.4 581.601 1595.39 576.1 C 1583.16 564.902 1588.88 526.112 1588.02 509.783 C 1582.39 525.085 1576.47 542.007 1574.63 558.204 C 1573.52 567.969 1574.55 579.069 1581.16 586.874 C 1585.74 592.282 1591.13 593.817 1597.88 594.406 L 1599.45 594.536 L 1599.92 595.278 C 1598.45 595.506 1596.93 595.704 1595.49 596.059 C 1577.02 600.611 1550.72 647.079 1541.13 663.037 C 1534.58 653.422 1528.64 643.369 1521.51 634.159 C 1495.73 600.811 1461.36 578.185 1420.91 566.9 C 1432.13 573.032 1443.24 579.927 1453.54 587.491 C 1485.92 611.257 1516.64 646.256 1522.88 687.171 C 1516.92 681.076 1510.89 675.142 1504.46 669.543 C 1462.9 633.328 1410.15 604.038 1354.93 597.254 C 1337.02 595.054 1319.08 595.559 1301.12 596.828 C 1314.05 598.63 1326.94 600.629 1339.81 602.826 C 1400.37 613.463 1456.35 642.059 1500.46 684.903 C 1513.07 697.078 1524.4 710.822 1536.01 723.961 C 1556.22 746.841 1576 769.853 1593.5 794.893 C 1592.8 833.652 1588.79 877.44 1578.05 914.833 C 1573.22 931.683 1566.5 947.973 1559.86 964.173 C 1566.57 975.981 1575.48 986.677 1583.66 997.49 C 1593.39 1010.4 1602.96 1023.43 1612.36 1036.58 C 1646.26 1084.53 1681.4 1131.61 1717.73 1177.75 C 1732.89 1197.07 1747.47 1217.03 1764.11 1235.12 C 1771.69 1243.36 1779.1 1251.15 1789.6 1255.51 C 1797.64 1254.01 1804.73 1250.01 1812.64 1248.55 C 1821.09 1246.99 1829.79 1251.27 1836.59 1255.9 C 1850.31 1265.26 1861.1 1279.87 1863.87 1296.47 C 1864.4 1299.64 1864.58 1302.3 1862.56 1305.01 C 1852.9 1308.96 1782.33 1306.92 1767.25 1307 C 1761.16 1298.98 1755.47 1290.66 1748.84 1283.07 C 1735.26 1267.54 1720.02 1253.05 1705.97 1237.9 C 1645.49 1172.63 1588.96 1118.49 1515.16 1068.07 C 1477.3 1042.2 1443.58 1022.13 1400.09 1006.6 C 1403.49 996.806 1406.96 987.01 1409.61 976.976 C 1422.59 927.776 1412.86 877.392 1387.24 833.926 C 1382.48 825.862 1345.04 772.356 1338.09 770.576 C 1343.25 780.291 1351.16 788.718 1357.16 797.98 C 1373.14 822.654 1386.52 850.192 1395.18 878.317 C 1407.64 918.786 1407.91 960.07 1387.84 998.069 L 1378.1 991.302 C 1313.41 1015.35 1254.94 1006.81 1191.45 986.444 C 1154.49 974.591 1119.07 959.744 1083.66 943.898 C 1064.44 935.297 1045.54 925.99 1026.01 918.102 C 1034.22 941.591 1037.23 965.692 1036.11 990.503 C 1034.07 1035.45 1015.4 1080.89 983.139 1112.59 C 973.52 1122.05 962.157 1129.49 952.241 1138.59 C 947.085 1143.33 938.536 1151.39 938.72 1158.81 C 938.82 1162.85 941.844 1168.86 943.373 1172.66 C 953.935 1198.89 969.54 1226.56 990.796 1245.53 C 1005.21 1258.4 1017.63 1251.88 1034.31 1251.51 C 1044.98 1251.28 1054.55 1255.34 1062.14 1262.78 C 1075.46 1275.84 1080.78 1294.11 1081 1312.31 C 1049.96 1312.26 1018.93 1312.48 987.903 1312.95 C 981.272 1304.5 975.727 1295.23 969.191 1286.69 C 958.652 1272.92 946.845 1260.36 935.026 1247.69 C 908.936 1221.23 883.312 1194.08 856.499 1168.36 C 860.598 1164.35 864.582 1160.23 868.447 1156 C 887.063 1135.44 894.333 1110.56 892.868 1083.04 C 891.728 1061.62 885.622 1038.98 868.784 1024.48 C 857.92 1015.13 847.152 1013.13 833.351 1014.15 C 812.053 1042.93 789.7 1066.95 761.392 1088.91 C 791.718 1050.02 816.092 1009.54 835.93 964.251 C 857.829 914.26 874.916 861.434 906.096 816.095 C 923.444 790.87 945.286 772.952 965.949 751.019 L 966.73 750.179 C 894.46 798.619 867.146 872.453 833.324 948.193 C 824.858 967.153 815.226 985.769 805.444 1004.08 C 790.758 1031.56 772.598 1060.31 749.338 1081.42 C 691.585 1133.84 625.06 1108.02 569.244 1149.21 C 559.996 1156.03 551.524 1163.84 543.98 1172.51 C 527.644 1191.31 498.234 1235.96 494.543 1260.22 C 499.333 1268.08 522.075 1262.6 534.435 1275.58 C 545.127 1286.81 545.068 1301.6 544.967 1316.05 L 439.25 1316.38 C 439.13 1300.52 436.62 1264.08 440.659 1250.6 C 443.717 1240.39 454.175 1231.93 460.168 1223.18 C 485.708 1185.9 507.596 1141.42 514.054 1096.57 C 538.322 1093.38 561.095 1088.16 581.454 1073.83 C 639.63 1032.9 665.97 921.605 690.675 856.075 C 700.525 829.947 711.88 804.195 726.845 780.555 C 741.481 757.436 759.118 736.54 780.606 719.458 C 789.021 712.769 798.237 707.086 806.427 700.131 L 807.255 699.416 C 765.638 716.493 737.739 746.823 707.359 778.377 C 678.107 808.759 646.898 837.275 620.188 870.074 C 596.538 899.115 575.884 930.518 553.141 960.23 C 509.457 1017.3 455.142 1069.4 385.338 1091.81 C 319.967 1112.52 249.058 1106.52 188.1 1075.11 C 152.717 1056.68 96.7853 1015.02 85.4564 975.784 C 82.5272 965.641 83.6252 956.092 89.0806 947.037 C 93.4645 939.707 100.655 934.489 108.982 932.594 C 139.091 926.027 152.538 962.471 168.67 980.775 C 179.631 993.213 193.471 1004.24 207.44 1013.12 C 262.873 1048.34 335.317 1049.3 394.535 1023.44 C 488.867 982.229 539.133 885.935 604.789 812.418 C 633.227 780.237 666.273 752.444 702.851 729.943 C 771.355 688.045 848.296 670.206 928.003 670.415 C 953.186 670.481 978.3 672.863 1003.46 673.731 C 1062.03 675.752 1118.31 670.273 1174.06 651.694 C 1261.11 622.688 1327.84 559.325 1404.43 511.916 C 1446.75 485.242 1493.33 465.985 1542.13 454.973 L 1541.71 453.865 L 1541.05 452.009 C 1535.83 437.77 1533.41 422.836 1528.31 408.535 z"/>
+                </svg>
+              </div>
+            </motion.div>
+
+            {/* App Title */}
+            <motion.h1
+              className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-cyan-300 mb-2"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.6 }}
+            >
+              Cheetah
+            </motion.h1>
+            
+            <motion.p
+              className="text-gray-300 text-lg mb-8"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.8 }}
+            >
+              Speed-first AI Research
+            </motion.p>
+
+            {/* Dynamic Loading Text */}
+            <motion.div
+              className="mb-6"
+              key={loadingText} // Re-animate when text changes
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              <p className="text-cyan-300 text-lg font-medium">{loadingText}</p>
+            </motion.div>
+
+            {/* Epic Progress Bar */}
+            <motion.div
+              className="w-full bg-gray-800 rounded-full h-3 mb-4 overflow-hidden shadow-inner"
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: "100%" }}
+              transition={{ duration: 0.8, delay: 1 }}
+            >
+              <motion.div
+                className="h-full bg-gradient-to-r from-cyan-500 via-cyan-400 to-cyan-300 rounded-full shadow-lg"
+                style={{ width: `${loadingProgress}%` }}
+                animate={{
+                  backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "linear"
+                }}
+              />
+            </motion.div>
+
+            {/* Progress Percentage */}
+            <motion.p
+              className="text-gray-400 text-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.2 }}
+            >
+              {Math.round(loadingProgress)}%
+            </motion.p>
+          </div>
+
+          {/* Pulsing Ring Effect */}
+          <motion.div
+            className="absolute inset-0 pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5 }}
+          >
+            <motion.div
+              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 border-2 border-cyan-400/30 rounded-full"
+              animate={{
+                scale: [1, 1.2, 1],
+                opacity: [0.3, 0.1, 0.3],
+              }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            />
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+export default LoadingScreen

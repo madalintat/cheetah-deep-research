@@ -1,355 +1,327 @@
-# 🚀 Make It heavy
+# Make It Heavy - AI Research Platform
 
-A Python framework to emulate **Grok heavy** functionality using a powerful multi-agent system. Built on OpenRouter's API, Make It heavy delivers comprehensive, multi-perspective analysis through intelligent agent orchestration.
+![Make It Heavy Banner](./readme-cheetah.png)
 
-## 🌟 Features
+## 🚀 **The Ultimate AI Research Orchestrator**
 
-- **🧠 Grok heavy Emulation**: Multi-agent system that delivers deep, comprehensive analysis like Grok heavy mode
-- **🔀 Parallel Intelligence**: Deploy 4 specialized agents simultaneously for maximum insight coverage
-- **🎯 Dynamic Question Generation**: AI creates custom research questions tailored to each query
-- **⚡ Real-time Orchestration**: Live visual feedback during multi-agent execution
-- **🛠️ Hot-Swappable Tools**: Automatically discovers and loads tools from the `tools/` directory
-- **🔄 Intelligent Synthesis**: Combines multiple agent perspectives into unified, comprehensive answers
-- **🎮 Single Agent Mode**: Run individual agents for simpler tasks with full tool access
+**Make It Heavy** is a cutting-edge AI research platform that deploys multiple specialized AI agents to conduct deep, comprehensive research on any topic. Like a pack of digital cheetahs hunting for information across the web, our AI agents work in parallel to deliver lightning-fast, thorough research results.
 
-## 🚀 Quick Start
+### ⚡ **Why It's Absolutely Amazing**
 
-### Prerequisites
+- 🐆 **Multi-Agent Orchestration**: Deploy 4+ specialized AI "hunters" that work simultaneously
+- 🧠 **Deep Research Mode**: Advanced agents with memory, planning, and collaboration capabilities  
+- ⚡ **Real-Time Updates**: Watch your research unfold live with WebSocket connections
+- 🔍 **Smart Task Decomposition**: Automatically breaks complex queries into optimal research angles
+- 💾 **Persistent Sessions**: Continue research across browser refreshes and disconnections
+- 🎯 **Specialized Hunters**: Source scouts, deep analysts, fact checkers, and insight synthesizers
+- 🌐 **Multiple Search Engines**: DuckDuckGo, Tavily, and web crawling capabilities
+- 🔒 **User Isolation**: Each user's research is private and secured with RLS policies
 
-- Python 3.8+
-- [uv](https://github.com/astral-sh/uv) (recommended Python package manager)
-- OpenRouter API key
+## 🏗️ **Architecture**
 
-### Installation
-
-1. **Clone and setup environment:**
-```bash
-git clone <https://github.com/Doriandarko/make-it-heavy.git>
-cd "make it heavy"
-
-# Create virtual environment with uv
-uv venv
-
-# Activate virtual environment
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
+Frontend (React + Vite)  ←→  Backend (FastAPI + WebSockets)  ←→  Supabase Database
+                  ↓                        ↓
+              Research UI           AI Orchestrator
+                                         ↓
+                              4x Specialized AI Agents
+                                    ↓
+                              Ollama (Local LLM)
+                                    ↓  
+                           Web Search Tools + Crawling
 ```
 
-2. **Install dependencies:**
-```bash
-uv pip install -r requirements.txt
-```
+## 🛠️ **Technologies Used**
 
-3. **Configure API key:**
-```bash
-# Edit config.yaml and replace YOUR API KEY HERE with your OpenRouter API key
-```
+### Backend
+- **FastAPI** - High-performance async web framework
+- **Ollama** - Local LLM inference (llama3.1:8b)
+- **WebSockets** - Real-time bidirectional communication
+- **Supabase** - PostgreSQL database with real-time features
+- **Tavily API** - Advanced web search capabilities
+- **Crawl4AI** - Web page content extraction
 
-## 🎯 Usage
+### Frontend  
+- **React 18** - Modern UI framework
+- **Vite** - Lightning-fast build tool
+- **TailwindCSS** - Utility-first CSS framework
+- **Supabase Client** - Real-time database integration
 
-### Single Agent Mode
+### AI & Research
+- **Multi-Agent System** - Parallel AI research orchestration
+- **Deep Research Agents** - Memory, planning, and collaboration
+- **Hunter Role System** - Specialized agent personalities
+- **Research Memory** - Persistent context across sessions
+- **Smart Task Decomposition** - Query optimization
 
-Run a single intelligent agent with full tool access:
+## 📋 **Prerequisites**
 
-```bash
-uv run main.py
-```
+Before you begin, ensure you have:
 
-**What it does:**
-- Loads a single agent with all available tools
-- Processes your query step-by-step
-- Uses tools like web search, calculator, file operations
-- Returns comprehensive response when task is complete
+- **Python 3.11+** installed
+- **Node.js 18+** and npm installed  
+- **Ollama** installed and running locally
+- **Supabase** account with a project created
+- **Tavily API** account (for advanced search)
 
-**Example:**
-```
-User: Research the latest developments in AI and summarize them
-Agent: [Uses search tool, analyzes results, provides summary]
-```
+## 🚀 **Quick Setup Guide**
 
-### Grok heavy Mode (Multi-Agent Orchestration)
-
-Emulate Grok heavy's deep analysis with 4 parallel intelligent agents:
+### 1. **Clone & Install**
 
 ```bash
-uv run make_it_heavy.py
+git clone <your-repo-url>
+cd make-it-heavy
+
+# Create Python virtual environment
+python3 -m venv deep-env
+source deep-env/bin/activate  # On Windows: deep-env\Scripts\activate
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Install frontend dependencies
+cd frontend
+npm install
+cd ..
 ```
 
-**How Make It heavy works:**
-1. **🎯 AI Question Generation**: Creates 4 specialized research questions from your query
-2. **🔀 Parallel Intelligence**: Runs 4 agents simultaneously with different analytical perspectives
-3. **⚡ Live Progress**: Shows real-time agent status with visual progress bars
-4. **🔄 Intelligent Synthesis**: Combines all perspectives into one comprehensive Grok heavy-style answer
+### 2. **Setup Ollama**
 
-**Example Flow:**
-```
-User Query: "Who is Pietro Schirano?"
+```bash
+# Install Ollama (if not already installed)
+curl -fsSL https://ollama.ai/install.sh | sh
 
-AI Generated Questions:
-- Agent 1: "Research Pietro Schirano's professional background and career history"
-- Agent 2: "Analyze Pietro Schirano's achievements and contributions to technology"  
-- Agent 3: "Find alternative perspectives on Pietro Schirano's work and impact"
-- Agent 4: "Verify and cross-check information about Pietro Schirano's current role"
+# Start Ollama service
+ollama serve
 
-Result: Grok heavy-style comprehensive analysis combining all agent perspectives
+# Pull the required model (in another terminal)
+ollama pull llama3.1:8b
 ```
 
-## 🏗️ Architecture
+### 3. **Configure Environment Variables**
 
-### Orchestration Flow
-
-```mermaid
-graph TD
-    A[User Input] --> B[Question Generation Agent]
-    B --> C[Generate 4 Specialized Questions]
-    C --> D[Parallel Agent Execution]
-    D --> E[Agent 1: Research]
-    D --> F[Agent 2: Analysis] 
-    D --> G[Agent 3: Alternatives]
-    D --> H[Agent 4: Verification]
-    E --> I[Synthesis Agent]
-    F --> I
-    G --> I
-    H --> I
-    I --> J[Comprehensive Final Answer]
+```bash
+# Create environment file with your API keys
+python3 create_env_file.py
 ```
 
-### Core Components
+This creates a `.env` file. Update it with your actual keys:
 
-#### 1. Agent System (`agent.py`)
-- **Self-contained**: Complete agent implementation with tool access
-- **Agentic Loop**: Continues working until task completion
-- **Tool Integration**: Automatic tool discovery and execution
-- **Configurable**: Uses `config.yaml` for all settings
+```env
+# Supabase Configuration
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_KEY=your_service_role_key_here
+SUPABASE_ANON_KEY=your_anon_key_here
 
-#### 2. Orchestrator (`orchestrator.py`)
-- **Dynamic Question Generation**: AI creates specialized questions
-- **Parallel Execution**: Runs multiple agents simultaneously  
-- **Response Synthesis**: AI combines all agent outputs
-- **Error Handling**: Graceful fallbacks and error recovery
+# Tavily API Configuration  
+TAVILY_API_KEY=tvly-your-api-key-here
 
-#### 3. Tool System (`tools/`)
-- **Auto-Discovery**: Automatically loads all tools from directory
-- **Hot-Swappable**: Add new tools by dropping files in `tools/`
-- **Standardized Interface**: All tools inherit from `BaseTool`
-
-### Available Tools
-
-| Tool | Purpose | Parameters |
-|------|---------|------------|
-| `search_web` | Web search with DuckDuckGo | `query`, `max_results` |
-| `calculate` | Safe mathematical calculations | `expression` |
-| `read_file` | Read file contents | `path`, `head`, `tail` |
-| `write_file` | Create/overwrite files | `path`, `content` |
-| `mark_task_complete` | Signal task completion | `task_summary`, `completion_message` |
-
-## ⚙️ Configuration
-
-Edit `config.yaml` to customize behavior:
-
-```yaml
-# OpenRouter API settings
-openrouter:
-  api_key: "YOUR KEY"
-  base_url: "https://openrouter.ai/api/v1"
-  model: "openai/gpt-4.1-mini"  # Change model here
-
-# Agent settings
-agent:
-  max_iterations: 10
-
-# Orchestrator settings
-orchestrator:
-  parallel_agents: 4  # Number of parallel agents
-  task_timeout: 300   # Timeout per agent (seconds)
-  
-  # Dynamic question generation prompt
-  question_generation_prompt: |
-    You are an orchestrator that needs to create {num_agents} different questions...
-    
-  # Response synthesis prompt  
-  synthesis_prompt: |
-    You have {num_responses} different AI agents that analyzed the same query...
-
-# Tool settings
-search:
-  max_results: 5
-  user_agent: "Mozilla/5.0 (compatible; OpenRouter Agent)"
+# Ollama Configuration
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1:8b
 ```
 
-## 🔧 Development
+### 4. **Setup Supabase Database**
 
-### Adding New Tools
+1. Go to your [Supabase Dashboard](https://supabase.com/dashboard)
+2. Navigate to **SQL Editor** → **New Query**
+3. Copy the entire content from `fix_supabase_database.sql`
+4. Click **Run** and wait for completion
+5. Verify tables are created in **Table Editor**
 
-1. Create a new file in `tools/` directory
-2. Inherit from `BaseTool`
-3. Implement required methods:
+### 5. **Test Database Connection**
 
-```python
-from .base_tool import BaseTool
-
-class MyCustomTool(BaseTool):
-    @property
-    def name(self) -> str:
-        return "my_tool"
-    
-    @property
-    def description(self) -> str:
-        return "Description of what this tool does"
-    
-    @property
-    def parameters(self) -> dict:
-        return {
-            "type": "object",
-            "properties": {
-                "param": {"type": "string", "description": "Parameter description"}
-            },
-            "required": ["param"]
-        }
-    
-    def execute(self, param: str) -> dict:
-        # Tool implementation
-        return {"result": "success"}
+```bash
+# Test that everything is working
+python3 test_without_auth.py
 ```
 
-4. The tool will be automatically discovered and loaded!
+You should see: `🎉 DATABASE IS READY!`
 
-### Customizing Models
+## 🎯 **Launch The Application**
 
-Supports any OpenRouter-compatible model:
-
-```yaml
-openrouter:
-  model: "anthropic/claude-3.5-sonnet"     # For complex reasoning
-  model: "openai/gpt-4.1-mini"             # For cost efficiency  
-  model: "google/gemini-2.0-flash-001"     # For speed
-  model: "meta-llama/llama-3.1-70b"        # For open source
+```bash
+# Start both backend and frontend
+./launch.sh
 ```
 
-### Adjusting Agent Count
+This will:
+- ✅ Check that Ollama is running
+- 🚀 Start FastAPI backend on `http://localhost:8000`
+- 🎨 Start React frontend on `http://localhost:5173`
+- 🔗 Connect WebSocket endpoints
 
-Change number of parallel agents:
+## 📱 **How To Use**
 
+### 1. **Access The App**
+Open your browser to: http://localhost:5173
+
+### 2. **Authentication**
+- Login with Supabase Auth (email/password or OAuth)
+- Your research will be private and saved to your account
+
+### 3. **Start Research**
+- Enter any research query in the search box
+- Example: "Latest trends in AI development 2025"
+- Click **Start Research**
+
+### 4. **Watch The Magic**
+- See 4 specialized AI agents work in parallel
+- Real-time updates as each agent finds information
+- Deep research mode with memory and collaboration
+- Progress tracking and live results
+
+### 5. **Review Results**
+- Comprehensive final report combining all agent findings
+- Source citations and verification
+- Saved to your research history
+- Export or share results
+
+## 🐆 **Meet Your AI Hunters**
+
+### **Source Scout** 🔍
+- **Specialty**: Rapid source discovery and evaluation
+- **Skills**: Finding authoritative sources, price discovery, availability checks
+- **Collaboration**: Shares verified sources with other hunters
+
+### **Deep Analyst** 🧠  
+- **Specialty**: Thorough content analysis and detailed information extraction
+- **Skills**: In-depth research, technical analysis, expert insights
+- **Collaboration**: Builds on scout findings for comprehensive analysis
+
+### **Fact Checker** ✅
+- **Specialty**: Verifying claims and cross-referencing information  
+- **Skills**: Accuracy verification, bias detection, source credibility
+- **Collaboration**: Validates findings from other hunters
+
+### **Insight Synthesizer** 💡
+- **Specialty**: Combining findings into actionable insights
+- **Skills**: Pattern recognition, trend analysis, strategic recommendations
+- **Collaboration**: Creates final synthesis from all hunter inputs
+
+## ⚙️ **Configuration**
+
+### **Research Settings** (`config.yaml`)
 ```yaml
 orchestrator:
-  parallel_agents: 6  # Run 6 agents instead of 4
+  parallel_agents: 4        # Number of AI hunters
+  task_timeout: 120         # Max time per agent (seconds)
+  deep_research: true       # Enable advanced capabilities
+
+research:
+  depth: 6                  # Search iterations per agent
+  breadth: 10              # Results per search
+  min_sources_per_agent: 6  # Minimum sources required
 ```
 
-**Note**: Make sure your OpenRouter plan supports the concurrent usage!
+### **Advanced Features**
+- **Persistent Sessions**: Research continues across disconnections
+- **Research Memory**: Agents remember context across tasks
+- **Smart Caching**: Avoid duplicate searches
+- **Progress Tracking**: Real-time completion status
+- **User Isolation**: RLS policies ensure data privacy
 
-## 🎮 Examples
+## 🔧 **API Endpoints**
 
-### Research Query
+### **WebSocket**
+- `ws://localhost:8000/ws/{client_id}` - Real-time research updates
+
+### **REST API**
+- `GET /health` - Health check
+- `GET /` - API status
+
+### **WebSocket Messages**
+```json
+// Start research
+{"type": "start_research", "data": {"query": "your query", "user_id": "uuid"}}
+
+// Reconnect to session  
+{"type": "reconnect_session", "data": {"session_id": "uuid"}}
+
+// Get active sessions
+{"type": "get_active_sessions", "data": {"user_id": "uuid"}}
+```
+
+## 🚨 **Troubleshooting**
+
+### **Common Issues**
+
+**Ollama Not Running**
 ```bash
-User: "Analyze the impact of AI on software development in 2024"
+# Start Ollama
+ollama serve
 
-Single Agent: Comprehensive research report
-Grok heavy Mode: 4 specialized perspectives combined into deep, multi-faceted analysis
+# Check if model is available
+ollama list
 ```
 
-### Technical Question  
+**Database Connection Failed**
 ```bash
-User: "How do I optimize a React application for performance?"
+# Test database connection
+python3 test_without_auth.py
 
-Single Agent: Step-by-step optimization guide
-Grok heavy Mode: Research + Analysis + Alternatives + Verification = Complete expert guide
+# Check environment variables
+cat .env
 ```
 
-### Creative Task
-```bash
-User: "Create a business plan for an AI startup"
+**RLS Policy Violations**
+- Ensure you're using the **service role key** in backend
+- Verify database schema was executed properly
+- Check that user authentication is working
 
-Single Agent: Structured business plan
-Grok heavy Mode: Market research + Financial analysis + Competitive landscape + Risk assessment
-```
+**Frontend Won't Connect**
+- Verify backend is running on port 8000
+- Check browser console for WebSocket errors
+- Ensure CORS is properly configured
 
-## 🛠️ Troubleshooting
+### **Performance Optimization**
 
-### Common Issues
+**For Faster Research:**
+- Increase `parallel_agents` in config.yaml
+- Use SSD storage for better Ollama performance
+- Ensure stable internet for web searches
+- Consider upgrading to larger Ollama models
 
-**API Key Error:**
-```
-Error: Invalid API key
-Solution: Update config.yaml with valid OpenRouter API key
-```
+**For Resource Management:**
+- Reduce `depth` and `breadth` settings
+- Lower `task_timeout` for quicker results
+- Monitor system resources during research
 
-**Tool Import Error:**
-```
-Error: Could not load tool from filename.py
-Solution: Check tool inherits from BaseTool and implements required methods
-```
+## 📈 **Monitoring & Logs**
 
-**Synthesis Failure:**
-```
-🚨 SYNTHESIS FAILED: [error message]
-Solution: Check model compatibility and API limits
-```
+- **Backend logs**: Console output shows agent progress
+- **Frontend**: Browser DevTools for WebSocket messages  
+- **Database**: Supabase Dashboard for session data
+- **Ollama**: Check `ollama ps` for model status
 
-**Timeout Issues:**
-```
-Agent timeout errors
-Solution: Increase task_timeout in config.yaml
-```
-
-### Debug Mode
-
-For detailed debugging, modify orchestrator to show synthesis process:
-
-```python
-# In orchestrator.py
-synthesis_agent = OpenRouterAgent(silent=False)  # Enable debug output
-```
-
-## 📁 Project Structure
-
-```
-make it heavy/
-├── main.py                 # Single agent CLI
-├── make_it_heavy.py         # Multi-agent orchestrator CLI  
-├── agent.py                # Core agent implementation
-├── orchestrator.py         # Multi-agent orchestration logic
-├── config.yaml             # Configuration file
-├── requirements.txt        # Python dependencies
-├── README.md               # This file
-└── tools/                  # Tool system
-    ├── __init__.py         # Auto-discovery system
-    ├── base_tool.py        # Tool base class
-    ├── search_tool.py      # Web search
-    ├── calculator_tool.py  # Math calculations  
-    ├── read_file_tool.py   # File reading
-    ├── write_file_tool.py  # File writing
-    └── task_done_tool.py   # Task completion
-```
-
-## 🤝 Contributing
+## 🤝 **Contributing**
 
 1. Fork the repository
 2. Create a feature branch
-3. Add new tools or improve existing functionality
-4. Test with both single and multi-agent modes
+3. Make your changes
+4. Test thoroughly
 5. Submit a pull request
 
-## 📝 License
+## 📄 **License**
 
-MIT License with Commercial Attribution Requirement
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-**For products with 100K+ users**: Please include attribution to Pietro Schirano and mention the "Make It heavy" framework in your documentation or credits.
+## 🙋 **Support**
 
-See [LICENSE](LICENSE) file for full details.
-
-## 🙏 Acknowledgments
-
-- Built with [OpenRouter](https://openrouter.ai/) for LLM API access
-- Uses [uv](https://github.com/astral-sh/uv) for Python package management
-- Inspired by **Grok heavy** mode and advanced multi-agent AI systems
+Having issues? Check out:
+- **Database Setup**: `fix_supabase_database.sql`
+- **Environment Config**: `.env.example` 
+- **Test Scripts**: `test_without_auth.py`
+- **Configuration**: `config.yaml`
 
 ---
 
-**Ready to make it heavy?** 🚀
+## 🎉 **Ready to Hunt for Knowledge?**
+
+Launch your AI research platform and experience the power of coordinated artificial intelligence!
 
 ```bash
-uv run make_it_heavy.py
+./launch.sh
 ```
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Doriandarko/make-it-heavy&type=Date)](https://www.star-history.com/#Doriandarko/make-it-heavy&Date)
+**Happy Researching!** 🐆⚡🧠

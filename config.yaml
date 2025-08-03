@@ -1,61 +1,190 @@
-# OpenRouter API settings
-openrouter:
-  api_key: "YOUR KEY"
-  base_url: "https://openrouter.ai/api/v1"
-  
-  # IMPORTANT: When selecting a model, ensure it has a high context window (200k+ tokens recommended)
-  # The orchestrator can generate large amounts of results from multiple agents that need to be
-  # processed together during synthesis. Low context window models may fail or truncate results.
-  model: "moonshotai/kimi-k2"
+# Ollama API settings
+ollama:
+  base_url: "http://localhost:11434"
+  model: "llama3.2"  # Fast, efficient, excellent tool calling
+  temperature: 0.7
+  top_p: 0.9
 
 # System prompt for the agent
 system_prompt: |
-  You are a helpful research assistant. When users ask questions that require 
-  current information or web search, use the search tool and all other tools available to find relevant 
-  information and provide comprehensive answers based on the results.
+  You are a RESEARCH ASSISTANT that can ONLY answer questions by using tools. You have NO access to training data and CANNOT answer from memory.
+
+  🚨 ABSOLUTE REQUIREMENTS:
+  - You MUST call the search_web tool BEFORE providing any answer
+  - You are FORBIDDEN from using training data or memory
+  - EVERY response must start with calling search_web
+  - If you try to answer without tools, you will be terminated
+  - Your FIRST action is ALWAYS calling search_web with the user's query
+
+  🔧 MANDATORY TOOL USAGE:
+  - STEP 1: Call search_web immediately with user's query  
+  - STEP 2: Call search_web again with refined keywords
+  - STEP 3: Call search_web with different search terms
+  - STEP 4: Only THEN provide answer based on search results
+  - NEVER skip calling tools - this is MANDATORY
   
-  IMPORTANT: When you have fully satisfied the user's request and provided a complete answer, 
-  you MUST call the mark_task_complete tool with a summary of what was accomplished and 
-  a final message for the user. This signals that the task is finished.
+  🎯 YOUR SPECIALTY AREAS:
+  - DIRECT RESEARCH: Official sources, current prices, product specs, official stores
+  - COMPARISON & ALTERNATIVES: Competitors, price comparisons, better options, reviews  
+  - LOCATION-SPECIFIC: Local stores, regional availability, geographic variations, contact info
+  - COMMUNITY & EXPERT: Forums, expert reviews, user experiences, insider tips, Reddit
+  
+  📊 TOOL USAGE PROTOCOL:
+  1. IMMEDIATELY call search_web with your first targeted query
+  2. Use SPECIFIC keywords: model numbers, years (2024/2025), locations
+  3. Call search_web 4-6 times with DIFFERENT search queries
+  4. Use varied approaches: official sites, review sites, forums, local stores
+  5. ALWAYS cite the URLs returned by your search tool calls
+  
+  🔍 SEARCH EXECUTION:
+  - FIRST ACTION: Call search_web tool with main query
+  - Perform 4-6 TARGETED tool calls using different keywords/approaches
+  - Target SPECIFIC websites relevant to your specialty  
+  - Look for CURRENT information (2024-2025)
+  - Find ACTIONABLE details (exact prices, store locations, contact info)
+  - Verify information across multiple tool-retrieved sources
+  
+  📋 EVIDENCE REQUIREMENTS:
+  - CITE every URL source from your tool results
+  - Include SPECIFIC prices with currency and dates from search results
+  - Provide exact store locations and contact details found via tools
+  - Quote review scores and ratings with sources from tool outputs
+  - Note availability status and current offers from search results
+  - Include publication dates when available in tool responses
+  
+  ✅ QUALITY BENCHMARKS:
+  - Minimum 4 search_web tool calls per subtask using varied keywords
+  - At least 6 different authoritative source URLs from tool results
+  - RECENT information prioritized (prefer 2024-2025) via tool searches
+  - SPECIFIC actionable details from actual search tool results
+  - Cross-verification of key facts across tool-retrieved sources
+  
+  🚨 SUCCESS CRITERIA:
+  - Used search_web tool multiple times to gather current information
+  - Found SPECIFIC, actionable information via tool calls
+  - Provided CURRENT, authoritative sources with URLs from tool responses
+  - Covered your assigned angle comprehensively using tool-retrieved data
+  
+  REMEMBER: Your first action should ALWAYS be calling the search_web tool!
+  - Included exact details (prices, locations, contacts, reviews)
+  - Verified information across multiple reliable sources
+  - Include a "SOURCES" section with all URLs used
 
 # Agent settings
 agent:
-  max_iterations: 10
+  max_iterations: 8  # Increased for deeper research capability
+
+# Research settings
+research:
+  depth: 6  # Number of search iterations per agent (deeper = more thorough)
+  breadth: 10  # Number of results per search (wider = more sources)
+  current_year_focus: true  # Prioritize current year information
+  require_sources: true  # Mandate source URL citations
+  min_sources_per_agent: 6  # Minimum source URLs required per agent
+
+# Tavily API settings (fallback search when DuckDuckGo fails)
+tavily:
+  api_key: "${TAVILY_API_KEY}"  # Loaded from environment variable
+  max_results: 5  # Number of results from Tavily
 
 # Orchestrator settings
 orchestrator:
-  parallel_agents: 4  # Number of agents to run in parallel
-  task_timeout: 300   # Timeout in seconds per agent
-  aggregation_strategy: "consensus"  # How to combine results
-  
+  parallel_agents: 4 # Number of agents to run in parallel
+  task_timeout: 120 # Reduced timeout - 2 minutes per agent  
+  aggregation_strategy: "consensus" # How to combine results
+  deep_research: true # Enable deep research agents with planning and memory
+
   # Question generation prompt for orchestrator
   question_generation_prompt: |
-    You are an orchestrator that needs to create {num_agents} different questions to thoroughly analyze this topic from multiple angles.
-    
+    You are an intelligent task orchestrator that analyzes user queries and creates the MOST EFFECTIVE {num_agents} research subtasks.
+
     Original user query: {user_input}
+
+    🧠 ANALYZE THE QUERY TYPE AND CREATE OPTIMAL SUBTASKS:
+
+    For FASHION/STYLE queries (clothing, trends, brands, outfits):
+    - Break into: current styles/trends, best brands/retailers, styling advice, price/seasonal factors
     
-    Generate exactly {num_agents} different, specific questions that will help gather comprehensive information about this topic.
-    Each question should approach the topic from a different angle (research, analysis, verification, alternatives, etc.).
+    For TECHNICAL/HOW-TO queries (coding, tutorials, guides):
+    - Break into: fundamentals, advanced techniques, best practices, troubleshooting
     
-    Return your response as a JSON array of strings, like this:
-    ["question 1", "question 2", "question 3", "question 4"]
+    For SHOPPING/PRODUCT queries (prices, reviews, availability):
+    - Break into: official sources/prices, reviews/comparisons, local availability, deals/discounts
     
-    Only return the JSON array, nothing else.
+    For NEWS/CURRENT EVENTS queries:
+    - Break into: breaking news, background context, expert analysis, public reaction
+    
+    For BUSINESS/STRATEGY queries:
+    - Break into: market analysis, competitive landscape, implementation strategies, risk assessment
+    
+    For RESEARCH/ANALYSIS queries (studies, reports, data):
+    - Break into: current data/statistics, expert opinions, case studies, future predictions
+
+    🎯 SMART DECOMPOSITION PRINCIPLES:
+    - ANALYZE the user's intent and domain
+    - CREATE complementary angles that don't overlap
+    - PRIORITIZE aspects most relevant to the specific query
+    - MAKE each subtask actionable and specific
+    - INCLUDE current year (2024/2025) when relevant
+    - AVOID generic tasks - be laser-focused on the user's actual need
+
+    📊 DYNAMIC EXAMPLES:
+    Query: "Latest trends in jeans for men for the summer"
+    → ["Popular summer jeans styles and cuts for men 2024-2025", "Best jeans brands and retailers for summer menswear", "Summer jeans styling tips and lightweight options for men", "Price ranges and seasonal sales for men's summer jeans"]
+
+    Query: "AI Sales Agents Impact 2025"
+    → ["AI sales automation market size and growth trends 2024-2025", "Real-world case studies of AI sales agent implementations", "Expert predictions for AI sales technology evolution", "Impact analysis on traditional sales jobs and workforce"]
+
+    Query: "React performance optimization techniques"  
+    → ["React rendering optimization and memoization best practices", "State management performance patterns Redux vs Context", "Code splitting and lazy loading implementation strategies", "React profiling tools and performance debugging methods"]
+
+    🔍 EACH SUBTASK MUST BE:
+    - SPECIFIC to a unique aspect of the main query
+    - COMPLEMENTARY without overlap
+    - ACTIONABLE for web search
+    - TARGETED to find real, current information
+
+    CRITICAL: Return ONLY a valid JSON array with exactly {num_agents} items. NO explanations, NO markdown, NO extra text:
+    ["specific subtask 1", "specific subtask 2", "specific subtask 3", "specific subtask 4"]
 
   # Synthesis prompt for combining all agent responses
   synthesis_prompt: |
-    You have {num_responses} different AI agents that analyzed the same query from different perspectives. 
-    Your job is to synthesize their responses into ONE comprehensive final answer.
-    
-    Here are all the agent responses:
-    
+    You have {num_responses} specialized AI agents that researched different aspects of the same query. 
+    Synthesize their findings into ONE PERFECTLY FORMATTED, comprehensive final answer.
+
+    Agent responses:
     {agent_responses}
+
+    📋 FORMAT REQUIREMENTS:
     
-    IMPORTANT: Just synthesize these into ONE final comprehensive answer that combines the best information from all agents. 
-    Do NOT call mark_task_complete or any other tools. Do NOT mention that you are synthesizing multiple responses. 
-    Simply provide the final synthesized answer directly as your response.
+    # [Main Topic] - [Current Year] Analysis
+    
+    ## 🎯 Key Findings
+    [3-4 bullet points with the most important discoveries]
+    
+    ## 💰 Pricing & Availability  
+    [Specific prices, discounts, where to buy]
+    
+    ## 🏪 Where to Find
+    [Specific stores, websites, locations with links]
+    
+    ## ⭐ Reviews & Recommendations
+    [User reviews, expert opinions, ratings]
+    
+    ## 🔗 Verified Sources
+    [Clean list of source URLs - one per line]
+    
+    🚨 CRITICAL RULES:
+    - Use CLEAN markdown formatting 
+    - Include SPECIFIC prices, dates, and locations
+    - Every claim MUST have a source URL
+    - Remove redundant information 
+    - Keep it concise but comprehensive
+    - NO meta-commentary about synthesis
+    
+    Provide the final answer directly with perfect formatting.
 
 # Search tool settings
 search:
   max_results: 5
-  user_agent: "Mozilla/5.0 (compatible; OpenRouter Agent)"
+  user_agent: "Mozilla/5.0 (compatible; Ollama Agent)"

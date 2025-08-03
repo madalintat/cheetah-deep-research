@@ -1,5 +1,35 @@
-openai
-requests
-beautifulsoup4
-pyyaml
-ddgs
+# 🐆 CHEETAH RESEARCH APP - Python Dependencies
+
+# Core Web Framework & ASGI Server
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+
+# WebSocket Support
+websockets>=12.0
+
+# HTTP Requests & Web Scraping
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+
+# Revolutionary AI-Powered Web Crawling
+crawl4ai>=0.2.77
+
+# Intelligent Search Fallback
+tavily-python>=0.3.3
+
+# Data Validation & Serialization
+pydantic>=2.5.0
+
+# Configuration Management
+pyyaml>=6.0.1
+
+# File Upload Support
+python-multipart>=0.0.6
+
+# Additional Utilities
+python-dotenv>=1.0.0
+aiofiles>=23.2.1
+
+# Development & Testing (Optional)
+pytest>=7.4.3
+pytest-asyncio>=0.21.1

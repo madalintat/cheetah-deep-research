@@ -1,16 +1,15 @@
 import json
-import yaml
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any
-from agent import OpenRouterAgent
+from agent import OllamaAgent
+from config_loader import load_config
 
 class TaskOrchestrator:
     def __init__(self, config_path="config.yaml", silent=False):
-        # Load configuration
-        with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+        # Load configuration with environment variable expansion
+        self.config = load_config(config_path)
         
         self.num_agents = self.config['orchestrator']['parallel_agents']
         self.task_timeout = self.config['orchestrator']['task_timeout']
@@ -26,7 +25,7 @@ class TaskOrchestrator:
         """Use AI to dynamically generate different questions based on user input"""
         
         # Create question generation agent
-        question_agent = OpenRouterAgent(silent=True)
+        question_agent = OllamaAgent(silent=True)
         
         # Get question generation prompt from config
         prompt_template = self.config['orchestrator']['question_generation_prompt']
@@ -41,25 +40,120 @@ class TaskOrchestrator:
         
         try:
             # Get AI-generated questions
+            if not self.silent:
+                print(f"🤖 Generating AI tasks for: '{user_input}'")
+            
             response = question_agent.run(generation_prompt)
             
-            # Parse JSON response
-            questions = json.loads(response.strip())
+            if not self.silent:
+                print(f"🎯 AI Response: {response[:200]}..." if len(response) > 200 else f"🎯 AI Response: {response}")
             
-            # Validate we got the right number of questions
+            # Clean up response - remove any markdown or extra formatting
+            clean_response = response.strip()
+            if clean_response.startswith('```json'):
+                clean_response = clean_response.replace('```json', '').replace('```', '')
+            if clean_response.startswith('```'):
+                clean_response = clean_response.replace('```', '')
+            
+            # Parse JSON response
+            questions = json.loads(clean_response.strip())
+            
+            # Validate we got the right structure
+            if not isinstance(questions, list):
+                raise ValueError(f"Expected list, got {type(questions)}")
+            
             if len(questions) != num_agents:
                 raise ValueError(f"Expected {num_agents} questions, got {len(questions)}")
+            
+            if not self.silent:
+                print(f"✅ Generated {len(questions)} smart AI tasks successfully")
+                for i, q in enumerate(questions):
+                    print(f"   {i+1}. {q}")
             
             return questions
             
         except (json.JSONDecodeError, ValueError) as e:
-            # Fallback: create simple variations if AI fails
-            return [
-                f"Research comprehensive information about: {user_input}",
-                f"Analyze and provide insights about: {user_input}",
-                f"Find alternative perspectives on: {user_input}",
-                f"Verify and cross-check facts about: {user_input}"
-            ][:num_agents]
+            # Intelligent fallback: create smarter variations based on query analysis
+            print(f"❌ AI question generation failed: {e}")
+            print(f"🔄 Using intelligent fallback for query: '{user_input}'")
+            
+            # Smart query analysis for better fallbacks
+            user_lower = user_input.lower()
+            
+            # Fashion/Style/Clothing queries - check these first!
+            if any(word in user_lower for word in ['fashion', 'style', 'clothing', 'jeans', 'shirt', 'dress', 'shoes', 'outfit', 'wear', 'wardrobe', 'brand']):
+                fallback_tasks = [
+                    f"Latest styles and popular options for: {user_input}",
+                    f"Best brands and where to buy: {user_input}",
+                    f"Styling tips and fashion advice for: {user_input}",
+                    f"Price ranges and seasonal considerations for: {user_input}"
+                ][:num_agents]
+                
+                print(f"🎯 Using FASHION fallback tasks:")
+                for i, task in enumerate(fallback_tasks):
+                    print(f"   {i+1}. {task}")
+                
+                return fallback_tasks
+            
+            # Technical/Tutorial queries
+            elif any(word in user_lower for word in ['how to', 'tutorial', 'guide', 'learn', 'code', 'programming']):
+                print(f"🎯 Using TECHNICAL fallback tasks")
+                return [
+                    f"Step-by-step guide and fundamentals: {user_input}",
+                    f"Advanced techniques and best practices for: {user_input}",
+                    f"Common problems and troubleshooting: {user_input}",
+                    f"Tools and resources for: {user_input}"
+                ][:num_agents]
+                
+            # Shopping/Product queries  
+            elif any(word in user_lower for word in ['price', 'buy', 'cost', 'cheap', 'discount', 'store', 'purchase', 'deals']):
+                print(f"🎯 Using SHOPPING fallback tasks")
+                return [
+                    f"Current prices and official sources for: {user_input}",
+                    f"Reviews and comparisons: {user_input}",
+                    f"Best deals and discounts for: {user_input}",
+                    f"Local availability and stores: {user_input}"
+                ][:num_agents]
+            
+            # News/Current Events
+            elif any(word in user_lower for word in ['news', 'breaking', 'latest', 'current', 'today', 'recent', 'update']):
+                print(f"🎯 Using NEWS fallback tasks")
+                return [
+                    f"Latest breaking news about: {user_input}",
+                    f"Background context and history of: {user_input}",
+                    f"Expert analysis and opinions on: {user_input}",
+                    f"Public reaction and social media response to: {user_input}"
+                ][:num_agents]
+                
+            # Business/Market Analysis - only for explicit business terms
+            elif any(word in user_lower for word in ['market analysis', 'business strategy', 'industry report', 'market research', 'competitive analysis']):
+                print(f"🎯 Using BUSINESS fallback tasks")
+                return [
+                    f"Market analysis and current data about: {user_input}",
+                    f"Competitive landscape and key players in: {user_input}",
+                    f"Industry trends and future predictions for: {user_input}",
+                    f"Strategic recommendations and insights for: {user_input}"
+                ][:num_agents]
+                
+            # General trends (but not fashion/style) 
+            elif any(word in user_lower for word in ['trend', 'analysis', 'research', 'study', 'report']) and not any(word in user_lower for word in ['fashion', 'style', 'clothing']):
+                print(f"🎯 Using RESEARCH/TRENDS fallback tasks")
+                return [
+                    f"Current data and statistics about: {user_input}",
+                    f"Expert analysis and opinions on: {user_input}",
+                    f"Case studies and real examples: {user_input}",
+                    f"Future predictions and trends: {user_input}"
+                ][:num_agents]
+                
+            else:
+                # General fallback - comprehensive coverage
+                print(f"🎯 Using GENERAL fallback tasks")
+                return [
+                    f"Comprehensive overview and current information about: {user_input}",
+                    f"Expert perspectives and professional insights on: {user_input}",
+                    f"Practical examples and real-world applications: {user_input}",
+                    f"Latest developments and future outlook for: {user_input}"
+                ][:num_agents]
     
     def update_agent_progress(self, agent_id: int, status: str, result: str = None):
         """Thread-safe progress tracking"""
@@ -77,7 +171,7 @@ class TaskOrchestrator:
             self.update_agent_progress(agent_id, "PROCESSING...")
             
             # Use simple agent like in main.py
-            agent = OpenRouterAgent(silent=True)
+            agent = OllamaAgent(silent=True)
             
             start_time = time.time()
             response = agent.run(subtask)
@@ -128,19 +222,31 @@ class TaskOrchestrator:
             return responses[0]
         
         # Create synthesis agent to combine all responses
-        synthesis_agent = OpenRouterAgent(silent=True)
+        synthesis_agent = OllamaAgent(silent=True)
         
         # Build agent responses section
         agent_responses_text = ""
         for i, response in enumerate(responses, 1):
             agent_responses_text += f"=== AGENT {i} RESPONSE ===\n{response}\n\n"
         
-        # Get synthesis prompt from config and format it
-        synthesis_prompt_template = self.config['orchestrator']['synthesis_prompt']
-        synthesis_prompt = synthesis_prompt_template.format(
-            num_responses=len(responses),
-            agent_responses=agent_responses_text
-        )
+        # Enhanced synthesis prompt to avoid duplication
+        synthesis_prompt = f"""
+        You have {len(responses)} different research perspectives on the same topic. 
+        Your job is to create ONE unified, comprehensive answer.
+
+        CRITICAL RULES:
+        1. DO NOT repeat the same information multiple times
+        2. Synthesize unique insights from each perspective
+        3. Create a coherent narrative without redundancy
+        4. Focus on the most current and accurate information
+        5. Prioritize 2025 information over older data
+        6. Remove any duplicate facts or redundant statements
+
+        Agent Research Results:
+        {agent_responses_text}
+
+        Create a single, non-repetitive, comprehensive synthesis focusing on the most current information available.
+        """
         
         # Completely remove all tools from synthesis agent to force direct response
         synthesis_agent.tools = []
