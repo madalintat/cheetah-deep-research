@@ -37,6 +37,20 @@ echo "📦 Installing Python dependencies..."
 pip install -r requirements.txt
 echo "✅ Dependencies installed!"
 
+# Install Playwright browsers (needed by Crawl4AI) if not already present
+echo "🎭 Ensuring Playwright browsers are installed..."
+python - <<'PY'
+try:
+    from playwright.__main__ import main as pw_main
+    import sys
+    # Install only chromium to keep it light
+    sys.argv = ["playwright", "install", "chromium", "--with-deps"]
+    pw_main()
+    print("✅ Playwright chromium installed")
+except Exception as e:
+    print(f"⚠️  Skipped Playwright install: {e}")
+PY
+
 echo ""
 echo "🎉 Setup complete! You can now run:"
 echo "  python main.py          # Single agent mode"

@@ -45,6 +45,7 @@ echo "✅ Backend running on http://localhost:8000"
 # Start frontend
 echo "🎨 Starting React frontend..."
 cd frontend
+npm install --silent
 npm run dev &
 FRONTEND_PID=$!
 cd ..

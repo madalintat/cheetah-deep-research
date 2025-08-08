@@ -155,7 +155,8 @@ class SearchTool(BaseTool):
         # Create search URLs with intelligence
         for search_term in targeted_searches[:max_results]:
             encoded_query = urllib.parse.quote_plus(search_term)
-            search_urls.append(f"https://www.google.com/search?q={encoded_query}")
+            # Prefer DuckDuckGo for reliability without aggressive bot blocking
+            search_urls.append(f"https://duckduckgo.com/?q={encoded_query}")
         
         return search_urls[:max_results]
     
@@ -164,13 +165,13 @@ class SearchTool(BaseTool):
         import re
         urls = []
         
-        # Extract URLs from Google search results
-        google_pattern = r'<a[^>]+href="(https?://[^"]+)"[^>]*>'
-        matches = re.findall(google_pattern, html_content)
+        # Extract URLs from generic search page markup (works for DuckDuckGo, Google fallback)
+        generic_pattern = r'<a[^>]+href=\"(https?://[^\"]+)\"[^>]*>'
+        matches = re.findall(generic_pattern, html_content)
         
         for match in matches:
             # Skip Google's own URLs and ads
-            if not any(skip in match for skip in ['google.com', 'googleusercontent.com', 'doubleclick.net', 'ads', 'adsystem']):
+            if not any(skip in match for skip in ['duckduckgo.com', 'google.com', 'googleusercontent.com', 'doubleclick.net', 'ads', 'adsystem']):
                 urls.append(match)
         
         return list(set(urls))  # Remove duplicates
@@ -443,14 +444,58 @@ class SearchTool(BaseTool):
         else:
             return {"sufficient": True, "reason": "acceptable_quality", "score": quality_score}
     
+    def _fallback_to_duckduckgo_scrape(self, query: str, max_results: int = 5) -> List[dict]:
+        """Free fallback: scrape DuckDuckGo results and fetch page content via requests + BeautifulSoup"""
+        try:
+            import urllib.parse
+            from bs4 import BeautifulSoup
+            session = requests.Session()
+            headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"}
+            encoded = urllib.parse.quote_plus(query)
+            url = f"https://duckduckgo.com/html/?q={encoded}"
+            r = session.get(url, headers=headers, timeout=15)
+            r.raise_for_status()
+            soup = BeautifulSoup(r.text, 'html.parser')
+
+            results = []
+            for a in soup.select('a.result__a')[:max_results]:
+                href = a.get('href')
+                if not href or 'duckduckgo.com' in href:
+                    continue
+                try:
+                    pr = session.get(href, headers=headers, timeout=15)
+                    if pr.status_code != 200:
+                        continue
+                    psoup = BeautifulSoup(pr.text, 'html.parser')
+                    text = psoup.get_text(separator=' ', strip=True)[:2000]
+                    title = (psoup.title.string.strip() if psoup.title and psoup.title.string else a.get_text(strip=True))[:200]
+                    results.append({
+                        'url': href,
+                        'title': title,
+                        'content': text,
+                        'key_facts': [],
+                        'urls': [href],
+                        'extraction_success': True,
+                        'word_count': len(text.split()),
+                        'authority': self._assess_source_authority(href),
+                        'source': 'duckduckgo_scrape'
+                    })
+                except Exception:
+                    continue
+            return results
+        except Exception as e:
+            print(f"⚠️  Free fallback failed: {e}")
+            return []
+
     async def _fallback_to_tavily(self, query: str, max_results: int = 5) -> List[dict]:
-        """Fallback to Tavily when Crawl4AI results are insufficient"""
+        """Fallback to Tavily when Crawl4AI results are insufficient; if not configured, use DuckDuckGo scrape."""
         try:
             tavily_config = self.config.get('tavily', {})
             api_key = tavily_config.get('api_key')
             
             if not api_key:
-                raise Exception("Tavily API key not configured")
+                # No Tavily; use free fallback
+                return self._fallback_to_duckduckgo_scrape(query, max_results)
             
             tavily = TavilyClient(api_key=api_key)
             
@@ -487,7 +532,9 @@ class SearchTool(BaseTool):
             return results
             
         except Exception as e:
-            raise Exception(f"Tavily fallback failed: {str(e)}")
+            # If Tavily fails, try free fallback too
+            print(f"⚠️  Tavily fallback failed: {e}. Trying DuckDuckGo scrape...")
+            return self._fallback_to_duckduckgo_scrape(query, max_results)
     
     async def execute(self, query: str, max_results: int = 5, deep_extract: bool = True) -> List[dict]:
         """Execute the revolutionary Crawl4AI + OLLAMA search with smart Tavily fallback"""
@@ -498,12 +545,12 @@ class SearchTool(BaseTool):
             # Add timeout protection
             import asyncio
             try:
-                            # Step 1: Get content URLs (not search engine URLs) with timeout
-            max_urls = int(max_results) * 3  # Ensure integer type
-            content_urls = await asyncio.wait_for(
-                self._get_content_urls(query, max_urls), 
-                timeout=30.0  # 30 second timeout
-            )
+                # Step 1: Get content URLs (not search engine URLs) with timeout
+                max_urls = int(max_results) * 3  # Ensure integer type
+                content_urls = await asyncio.wait_for(
+                    self._get_content_urls(query, max_urls),
+                    timeout=30.0  # 30 second timeout
+                )
             except asyncio.TimeoutError:
                 print("⏰ Crawl4AI timeout, falling back to Tavily...")
                 return await self._fallback_to_tavily(query, max_results)
@@ -562,20 +609,9 @@ class SearchTool(BaseTool):
             
             try:
                 return await self._fallback_to_tavily(query, max_results)
-            except Exception as tavily_error:
-                print(f"💀 CRITICAL: Both Crawl4AI and Tavily failed!")
-                print(f"   Crawl4AI error: {str(main_error)}")
-                print(f"   Tavily error: {str(tavily_error)}")
-                
-                # Return a minimal result instead of crashing
-                return [{
-                    "url": "fallback",
-                    "title": f"Search results for: {query}",
-                    "content": f"Search temporarily unavailable. Please try again. Error: {str(main_error)[:100]}",
-                    "extraction_success": False,
-                    "word_count": 0,
-                    "error": str(main_error)
-                }]
+            except Exception:
+                # As a last resort, free fallback
+                return self._fallback_to_duckduckgo_scrape(query, max_results)
     
     async def cleanup(self):
         """Clean up the crawler when done"""

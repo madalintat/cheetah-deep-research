@@ -57,18 +57,18 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# Supabase configuration from environment variables
+# Supabase configuration from environment variables (optional)
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
-# Validate required environment variables
-if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-    raise ValueError("Missing required Supabase environment variables. Please check your .env file.")
-
-print(f"🔌 Supabase configured: {SUPABASE_URL}")
-print(f"🔑 Service key loaded: {'✅' if SUPABASE_SERVICE_KEY else '❌'}")
-print(f"🔑 Anon key loaded: {'✅' if SUPABASE_ANON_KEY else '❌'}")
+SUPABASE_ENABLED = bool(SUPABASE_URL and SUPABASE_SERVICE_KEY)
+if SUPABASE_ENABLED:
+    print(f"🔌 Supabase configured: {SUPABASE_URL}")
+    print(f"🔑 Service key loaded: {'✅' if SUPABASE_SERVICE_KEY else '❌'}")
+    print(f"🔑 Anon key loaded: {'✅' if SUPABASE_ANON_KEY else '❌'}")
+else:
+    print("⚠️  Supabase disabled (no env). Running with local in-memory persistence only.")
 
 class SupabaseClient:
     """Simple Supabase client for backend operations"""
@@ -172,7 +172,11 @@ class SupabaseClient:
         except Exception as e:
             return {"data": None, "error": str(e)}
 
-supabase_client = SupabaseClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+supabase_client = SupabaseClient(SUPABASE_URL or "", SUPABASE_SERVICE_KEY or "")
+
+# In-memory persistence for local/guest mode
+LOCAL_SESSIONS: Dict[str, dict] = {}
+LOCAL_HISTORY: Dict[str, list] = {}
 
 class PersistentResearchSession:
     """Represents a research session that can survive disconnections"""
@@ -211,7 +215,7 @@ class PersistentResearchSession:
         }
         
         # Update progress in Supabase for certain message types
-        if message_type == "agent_progress" and self.user_id:
+        if message_type == "agent_progress" and self.user_id and SUPABASE_ENABLED:
             session_progress = data.get("session_progress", self.progress)
             if session_progress != self.progress:
                 self.progress = session_progress
@@ -245,8 +249,8 @@ class PersistentSessionManager:
             session = PersistentResearchSession(session_id, query, user_id)
             self.sessions[session_id] = session
         
-        # Save to Supabase
-        if user_id:
+        # Save to Supabase if enabled; otherwise keep local only
+        if user_id and SUPABASE_ENABLED:
             from datetime import datetime
             current_time = datetime.now().isoformat()
             session_data = {
@@ -266,6 +270,19 @@ class PersistentSessionManager:
                 print(f"❌ Failed to save session to Supabase: {result['error']}")
             else:
                 print(f"✅ Session saved to Supabase: {session_id[:8]}")
+        else:
+            # Local store
+            LOCAL_SESSIONS[session_id] = {
+                "session_id": session_id,
+                "query": query,
+                "status": "ongoing",
+                "current_phase": "initializing",
+                "progress": 0,
+                "agents": [],
+                "start_time": session.start_time,
+                "last_updated": session.last_updated,
+                "user_id": user_id,
+            }
             
         print(f"🔄 Created persistent session {session_id[:8]} for query: '{query[:50]}...'")
         return session_id
@@ -303,7 +320,7 @@ class PersistentSessionManager:
             total_time = time.time() - session.start_time
             
             # Update session in research_sessions table
-            if session.user_id:
+            if session.user_id and SUPABASE_ENABLED:
                 from datetime import datetime
                 
                 # Update the session status
@@ -335,6 +352,17 @@ class PersistentSessionManager:
                     print(f"✅ Research saved to history for session {session_id[:8]}")
             else:
                 print(f"✅ Session {session_id[:8]} completed")
+                # Save to local history if user exists
+                if session.user_id:
+                    LOCAL_HISTORY.setdefault(session.user_id, []).insert(0, {
+                        "id": str(uuid.uuid4()),
+                        "created_at": time.time(),
+                        "query": session.query,
+                        "final_result": final_result,
+                        "agent_results": agent_results or [],
+                        "total_time": total_time,
+                        "agents": session.agents
+                    })
 
     def get_active_sessions(self) -> Dict[str, PersistentResearchSession]:
         """Get all active sessions"""
@@ -387,11 +415,15 @@ async def get_active_sessions():
 async def get_research_history(user_id: str):
     """Get research history for a user"""
     try:
-        result = await supabase_client.get_research_history(user_id)
-        if result["error"]:
-            return JSONResponse({"error": result["error"]}, status_code=500)
+        if SUPABASE_ENABLED:
+            result = await supabase_client.get_research_history(user_id)
+            if result["error"]:
+                return JSONResponse({"error": result["error"]}, status_code=500)
+            else:
+                return JSONResponse({"data": result["data"]})
         else:
-            return JSONResponse({"data": result["data"]})
+            data = LOCAL_HISTORY.get(user_id, [])
+            return JSONResponse({"data": data})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
@@ -801,26 +833,39 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     }, client_id)
             
             elif message["type"] == "get_active_sessions":
-                # Load active sessions from Supabase
+                # Load active sessions
                 user_id = message["data"].get("user_id")
                 if user_id:
-                    result = await supabase_client.get_active_sessions(user_id)
-                    if result["error"]:
-                        print(f"❌ Failed to load sessions from Supabase: {result['error']}")
-                        user_sessions = []
+                    if SUPABASE_ENABLED:
+                        result = await supabase_client.get_active_sessions(user_id)
+                        if result["error"]:
+                            print(f"❌ Failed to load sessions from Supabase: {result['error']}")
+                            user_sessions = []
+                        else:
+                            user_sessions = [
+                                {
+                                    "session_id": session["session_id"],
+                                    "query": session["query"],
+                                    "status": session["status"],
+                                    "current_phase": session["current_phase"],
+                                    "progress": session["progress"],
+                                    "start_time": session["start_time"]
+                                }
+                                for session in result["data"]
+                            ]
+                            print(f"📋 Loaded {len(user_sessions)} active sessions from Supabase for user {user_id[:8]}")
                     else:
                         user_sessions = [
                             {
-                                "session_id": session["session_id"],
-                                "query": session["query"],
-                                "status": session["status"],
-                                "current_phase": session["current_phase"],
-                                "progress": session["progress"],
-                                "start_time": session["start_time"]
+                                "session_id": s["session_id"],
+                                "query": s["query"],
+                                "status": s["status"],
+                                "current_phase": s["current_phase"],
+                                "progress": s["progress"],
+                                "start_time": s["start_time"],
                             }
-                            for session in result["data"]
+                            for s in LOCAL_SESSIONS.values() if s.get("user_id") == user_id and s.get("status") == "ongoing"
                         ]
-                        print(f"📋 Loaded {len(user_sessions)} active sessions from Supabase for user {user_id[:8]}")
                 else:
                     user_sessions = []
                 

@@ -9,7 +9,7 @@ import Login3D from './components/Login3D'
 import AppBackground from './components/AppBackground'
 import LoadingScreen from './components/LoadingScreen'
 import CheetahLoader from './components/CheetahLoader'
-import { supabase, getCurrentUser, signOut, saveResearchToDatabase, getUserResearchHistory } from './lib/supabase'
+import { supabase, getCurrentUser, signOut, saveResearchToDatabase, getUserResearchHistory, isSupabaseConfigured } from './lib/supabase'
 import './App.css'
 
 function App() {
@@ -38,7 +38,12 @@ function App() {
 
   // Check authentication status on mount
   useEffect(() => {
-    checkUser()
+    if (isSupabaseConfigured()) {
+      checkUser()
+    } else {
+      setUser({ id: 'guest', email: 'guest@local' })
+      setLoading(false)
+    }
     
     // Check for ongoing session on page load
     const ongoingSession = sessionStorage.getItem('ongoingSession')
@@ -52,19 +57,20 @@ function App() {
     }
     
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        setUser(session?.user || null)
-        if (session?.user) {
-          loadUserResearchHistory()
+    if (isSupabaseConfigured()) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN') {
+          setUser(session?.user || null)
+          if (session?.user) {
+            loadUserResearchHistory()
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null)
+          setResearchHistory([])
         }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null)
-        setResearchHistory([])
-      }
-    })
-
-    return () => subscription.unsubscribe()
+      })
+      return () => subscription.unsubscribe()
+    }
   }, [])
 
   // Handle page refresh
@@ -188,7 +194,7 @@ function App() {
 
   // Initialize WebSocket connection
   useEffect(() => {
-    if (!user) return // Only connect WebSocket if user is authenticated
+    if (!user) return // Only connect WebSocket if user is authenticated or guest
     
     // Prevent multiple connections
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -621,7 +627,7 @@ function App() {
 
       
       {/* Show login screen if not authenticated and not loading */}
-      {!showLoginLoader && !user && <Login3D onLogin={handleUserLogin} />}
+      {!showLoginLoader && !user && isSupabaseConfigured() && <Login3D onLogin={handleUserLogin} />}
       
       {/* Cheetah Loader for Refresh */}
       <CheetahLoader isVisible={isRefreshing} />
@@ -720,19 +726,21 @@ function App() {
             {/* User Info */}
             <div className="flex items-center space-x-2">
               <User className="w-5 h-5 text-gray-400" />
-              <span className="text-sm text-gray-400">{user?.email}</span>
+              <span className="text-sm text-gray-400">{user?.email || 'guest@local'}</span>
             </div>
             
             {/* Logout Button */}
-            <motion.button
-              onClick={handleLogout}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              title="Sign Out"
-            >
-              <LogOut className="w-5 h-5" />
-            </motion.button>
+            {isSupabaseConfigured() && (
+              <motion.button
+                onClick={handleLogout}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                title="Sign Out"
+              >
+                <LogOut className="w-5 h-5" />
+              </motion.button>
+            )}
           </div>
         </div>
       </motion.header>

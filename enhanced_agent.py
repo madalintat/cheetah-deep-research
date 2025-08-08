@@ -164,6 +164,39 @@ class EnhancedOllamaAgent:
                 "tool_args": tool_args
             })
             
+            # Map common aliases to our canonical tool name
+            alias_map = {
+                "google": "search_web",
+                "bing": "search_web",
+                "duckduckgo": "search_web",
+                "web_search": "search_web",
+                "search": "search_web",
+                "websearch": "search_web",
+                "searchweb": "search_web",
+                "crawl": "search_web",
+                "crawl4ai": "search_web",
+            }
+            if tool_name in alias_map:
+                tool_name = alias_map[tool_name]
+
+            # Normalize common argument aliases from LLMs
+            if tool_name == "search_web" and isinstance(tool_args, dict):
+                if "q" in tool_args and "query" not in tool_args:
+                    tool_args["query"] = tool_args.pop("q")
+                if "maxResults" in tool_args and "max_results" not in tool_args:
+                    tool_args["max_results"] = tool_args.pop("maxResults")
+                if "deepExtract" in tool_args and "deep_extract" not in tool_args:
+                    tool_args["deep_extract"] = tool_args.pop("deepExtract")
+                # Additional common aliases
+                if "limit" in tool_args and "max_results" not in tool_args:
+                    tool_args["max_results"] = tool_args.pop("limit")
+                if "num_results" in tool_args and "max_results" not in tool_args:
+                    tool_args["max_results"] = tool_args.pop("num_results")
+                if "topK" in tool_args and "max_results" not in tool_args:
+                    tool_args["max_results"] = tool_args.pop("topK")
+                if "deep" in tool_args and "deep_extract" not in tool_args:
+                    tool_args["deep_extract"] = tool_args.pop("deep")
+
             # Call appropriate tool from tool_mapping
             if tool_name in self.tool_mapping:
                 # Handle async tool calls properly
@@ -180,7 +213,7 @@ class EnhancedOllamaAgent:
                 await self.send_step_update("tool_completed", {
                     **step_info,
                     "message": f"✅ {tool_name} completed! Found {step_info['results_found']} results",
-                    "execution_time": time.time()  # Add timestamp for tracking
+                    "finished_at": datetime.now().isoformat()
                 })
                 
             else:

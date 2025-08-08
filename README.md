@@ -61,8 +61,8 @@ Before you begin, ensure you have:
 - **Python 3.11+** installed
 - **Node.js 18+** and npm installed  
 - **Ollama** installed and running locally
-- **Supabase** account with a project created
-- **Tavily API** account (for advanced search)
+- Optional: **Supabase** account (for cloud persistence; local guest mode works without it)
+- Optional: **Tavily API** (fallback search; project will use free DuckDuckGo scraping if missing)
 
 ## 🚀 **Quick Setup Guide**
 
@@ -101,11 +101,11 @@ ollama pull llama3.1:8b
 ### 3. **Configure Environment Variables**
 
 ```bash
-# Create environment file with your API keys
-python3 create_env_file.py
+# Optional: Create environment file with your API keys
+python3 create_env_file.py  # You can skip this to run fully local without Supabase/Tavily
 ```
 
-This creates a `.env` file. Update it with your actual keys:
+If you choose to use Supabase/Tavily, update `.env` with your keys:
 
 ```env
 # Supabase Configuration
@@ -121,7 +121,7 @@ OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.1:8b
 ```
 
-### 4. **Setup Supabase Database**
+### 4. **Setup Supabase Database (Optional)**
 
 1. Go to your [Supabase Dashboard](https://supabase.com/dashboard)
 2. Navigate to **SQL Editor** → **New Query**
@@ -141,7 +141,7 @@ You should see: `🎉 DATABASE IS READY!`
 ## 🎯 **Launch The Application**
 
 ```bash
-# Start both backend and frontend
+# Start both backend and frontend (fully local, free)
 ./launch.sh
 ```
 
@@ -255,7 +255,7 @@ ollama serve
 ollama list
 ```
 
-**Database Connection Failed**
+**Database Connection Failed (Optional)**
 ```bash
 # Test database connection
 python3 test_without_auth.py
