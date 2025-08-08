@@ -25,18 +25,23 @@ cleanup() {
 # Set up signal handlers
 trap cleanup SIGINT SIGTERM
 
-# Start backend
+# Start backend (reuse existing if bound)
 echo "🔧 Starting FastAPI backend..."
-python3 backend.py &
-BACKEND_PID=$!
+if lsof -i :8000 -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "ℹ️  Backend already running on :8000"
+  BACKEND_PID=""
+else
+  uvicorn backend:app --host 0.0.0.0 --port 8000 --reload &
+  BACKEND_PID=$!
+fi
 
 # Wait for backend to start
 sleep 3
 
-# Check if backend started successfully
+# Check if backend started successfully (or was already running)
 if ! curl -s http://localhost:8000/health &> /dev/null; then
-    echo "❌ Backend failed to start"
-    kill $BACKEND_PID 2>/dev/null
+    echo "❌ Backend not responding on :8000/health"
+    [ -n "$BACKEND_PID" ] && kill "$BACKEND_PID" 2>/dev/null || true
     exit 1
 fi
 
@@ -46,6 +51,7 @@ echo "✅ Backend running on http://localhost:8000"
 echo "🎨 Starting React frontend..."
 cd frontend
 npm install --silent
+# If 5173 is taken, vite chooses another; we still track PID
 npm run dev &
 FRONTEND_PID=$!
 cd ..
@@ -53,13 +59,7 @@ cd ..
 # Wait for frontend to start
 sleep 5
 
-if ! curl -s http://localhost:5173 &> /dev/null; then
-    echo "❌ Frontend failed to start"
-    cleanup
-    exit 1
-fi
-
-echo "✅ Frontend running on http://localhost:5173"
+echo "✅ Frontend dev server started (check terminal for actual port)"
 echo ""
 echo "🎉 Make It Heavy is ready!"
 echo "📱 Open your browser to: http://localhost:5173"

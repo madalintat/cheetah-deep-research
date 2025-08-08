@@ -1,10 +1,15 @@
 import { motion } from 'framer-motion'
 import { CheckCircle2, Clock, FileText, TrendingUp, ExternalLink, Shield, Globe, Award, Download, Copy, Check } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 const ResultsPanel = ({ result, agents, researchData }) => {
   const [copySuccess, setCopySuccess] = useState(false)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
+  const [showResults, setShowResults] = useState(true)
+  const [showSources, setShowSources] = useState(true)
+  const [showContributions, setShowContributions] = useState(true)
   
   const completedAgents = agents.filter(agent => agent.status === 'COMPLETED')
   const totalTime = agents.reduce((acc, agent) => acc + (agent.executionTime || 0), 0)
@@ -52,6 +57,21 @@ const ResultsPanel = ({ result, agents, researchData }) => {
   }
 
   const sources = extractSources()
+
+  // Build compact contribution summary under Sources section
+  const contributionsSummary = useMemo(() => {
+    if (!completedAgents.length) return []
+    return completedAgents.map((agent) => {
+      const text = (agent.result || '').slice(0, 400)
+      const snippet = text.length === 400 ? text + '…' : text
+      return {
+        id: agent.id,
+        time: agent.executionTime || 0,
+        subtask: agent.subtask || '',
+        snippet
+      }
+    })
+  }, [completedAgents])
 
   // Copy research results to clipboard
   const handleCopyToClipboard = async () => {
@@ -272,6 +292,39 @@ ${completedAgents.map((agent, index) =>
     }
   }
 
+  // Download compact summary-only PDF
+  const handleDownloadSummaryPDF = async () => {
+    setDownloadingPdf(true)
+    try {
+      const element = document.createElement('div')
+      const summaryText = (result || '').slice(0, 1200)
+      const quickStats = `Hunters Completed: ${displayCompletedCount} | Total Time: ${displayTotalTime.toFixed(1)}s | Hunters/Minute: ${displayHuntersPerMinute}`
+
+      element.innerHTML = `
+        <div style="font-family: Arial, sans-serif; padding: 28px; background: #111827; color: #e5e7eb;">
+          <h1 style="margin:0 0 6px 0; color:#67e8f9; font-size:22px;">🐆 Cheetah Research Summary</h1>
+          <p style="margin:0 0 16px 0; color:#9ca3af; font-size:12px;">${new Date().toLocaleString()}</p>
+          <div style="border-left:4px solid #67e8f9; background:#0b1220; padding:12px 14px; border-radius:8px; margin-bottom:14px;">
+            <strong style="color:#e5e7eb;">Quick Stats</strong>
+            <div style="color:#9ca3af; font-size:12px;">${quickStats}</div>
+          </div>
+          <div style="border-left:4px solid #22c55e; background:#0b1220; padding:12px 14px; border-radius:8px;">
+            <strong style="color:#e5e7eb;">Key Findings (excerpt)</strong>
+            <div style="white-space:pre-wrap; color:#d1d5db; font-size:13px; line-height:1.6; margin-top:6px;">${summaryText.replace(/</g, '&lt;')}</div>
+          </div>
+        </div>
+      `
+
+      const html2pdf = (await import('html2pdf.js')).default
+      const opt = { margin: [10,10,10,10], filename: `cheetah-summary-${Date.now()}.pdf`, image: { type: 'jpeg', quality: 0.9 }, html2canvas: { scale: 1.2, backgroundColor: '#111827' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }
+      await html2pdf().set(opt).from(element).save()
+    } catch (e) {
+      console.error('Summary PDF failed:', e)
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
   return (
     <motion.div
       className="space-y-6"
@@ -324,7 +377,10 @@ ${completedAgents.map((agent, index) =>
               <FileText className="w-6 h-6 text-black" />
             </motion.div>
             <div>
-              <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-cyan-300">Hunt Results</h2>
+              <div className="flex items-center space-x-3">
+                <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-cyan-300">Hunt Results</h2>
+                <button onClick={() => setShowResults(v => !v)} className="text-xs px-2 py-1 rounded border border-gray-600 text-gray-300 hover:border-cyan-400 hover:text-cyan-400">{showResults ? 'Hide' : 'Show'}</button>
+              </div>
               <p className="text-gray-400">Synthesized from {displayCompletedCount} hunter perspectives</p>
             </div>
           </div>
@@ -365,21 +421,37 @@ ${completedAgents.map((agent, index) =>
             >
               <Download className={`w-5 h-5 ${downloadingPdf ? 'animate-bounce' : ''}`} />
             </motion.button>
+
+            {/* Summary PDF Button */}
+            <motion.button
+              onClick={handleDownloadSummaryPDF}
+              disabled={downloadingPdf}
+              className={`p-3 rounded-lg border transition-all duration-300 ${
+                downloadingPdf
+                  ? 'bg-green-500/20 border-green-400 text-green-400 cursor-not-allowed'
+                  : 'bg-gray-800/50 border-gray-600 text-gray-300 hover:border-green-400 hover:text-green-400 hover:bg-green-400/10'
+              }`}
+              whileHover={!downloadingPdf ? { scale: 1.05 } : {}}
+              whileTap={!downloadingPdf ? { scale: 0.95 } : {}}
+              title={downloadingPdf ? 'Generating...' : 'Download Summary PDF'}
+            >
+              <FileText className={`w-5 h-5 ${downloadingPdf ? 'animate-pulse' : ''}`} />
+            </motion.button>
           </div>
         </div>
 
+        {showResults && (
         <motion.div
           className="prose prose-invert max-w-none"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
         >
-          <div className="bg-gray-900 rounded-lg p-6 border border-gray-700">
-            <div className="whitespace-pre-wrap text-gray-200 leading-relaxed">
-              {result}
-            </div>
+          <div className="bg-gray-900 rounded-lg p-6 border border-gray-700 prose prose-invert max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
           </div>
         </motion.div>
+        )}
 
         {/* Sources Section */}
         {sources.length > 0 && (
@@ -389,14 +461,16 @@ ${completedAgents.map((agent, index) =>
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8 }}
           >
-            <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
-              <ExternalLink className="w-5 h-5 text-cyan-400" />
-              <span>Sources Used ({sources.length})</span>
-              <span className="text-xs bg-cyan-400/10 text-cyan-400 px-2 py-1 rounded-full">
-                All Current & Verified
-              </span>
-            </h3>
+            <div className="flex items-center mb-4 space-x-3">
+              <h3 className="text-lg font-semibold flex items-center space-x-2">
+                <ExternalLink className="w-5 h-5 text-cyan-400" />
+                <span>Sources Used ({sources.length})</span>
+              </h3>
+              <span className="text-xs bg-cyan-400/10 text-cyan-400 px-2 py-1 rounded-full">All Current & Verified</span>
+              <button onClick={() => setShowSources(v => !v)} className="text-xs px-2 py-1 rounded border border-gray-600 text-gray-300 hover:border-cyan-400 hover:text-cyan-400">{showSources ? 'Hide' : 'Show'}</button>
+            </div>
             
+            {showSources && (
             <div className="grid grid-cols-1 gap-3 mb-6">
               {sources.map((source, index) => {
                 const AuthorityIcon = source.authority.icon
@@ -430,6 +504,30 @@ ${completedAgents.map((agent, index) =>
                 )
               })}
             </div>
+            )}
+
+            {contributionsSummary.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm text-gray-300">Agent contributions (highlights)</h4>
+                  <button onClick={() => setShowContributions(v => !v)} className="text-xs px-2 py-1 rounded border border-gray-600 text-gray-300 hover:border-purple-400 hover:text-purple-400">{showContributions ? 'Hide' : 'Show'}</button>
+                </div>
+                {showContributions && (
+                <div className="space-y-2">
+                  {contributionsSummary.map((c) => (
+                    <div key={c.id} className="p-3 bg-gray-900 rounded border border-gray-700">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-neon-green font-medium">Hunter {c.id + 1}</span>
+                        <span className="text-xs text-gray-400">{c.time?.toFixed(1)}s</span>
+                      </div>
+                      <p className="text-xs text-gray-400 italic mb-1 line-clamp-1">{c.subtask}</p>
+                      <p className="text-sm text-gray-300 line-clamp-3">{c.snippet}</p>
+                    </div>
+                  ))}
+                </div>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -461,8 +559,11 @@ ${completedAgents.map((agent, index) =>
                   transition={{ duration: 0.2 }}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-2">
-                      <h4 className="font-semibold text-neon-green">Hunter {agent.id + 1}</h4>
+                <div className="flex items-center space-x-2">
+                  <h4 className="font-semibold text-neon-green">Hunter {agent.id + 1}</h4>
+                  {agent.hunter_type && (
+                    <span className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full border border-gray-600 capitalize">{agent.hunter_type.replace(/_/g, ' ')}</span>
+                  )}
                       {agentUrls.length > 0 && (
                         <span className="text-xs bg-cyan-400/10 text-cyan-400 px-2 py-1 rounded-full">
                           {agentUrls.length} sources

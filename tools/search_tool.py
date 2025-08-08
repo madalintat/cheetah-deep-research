@@ -34,7 +34,19 @@ class SearchTool(BaseTool):
     
     def __init__(self, config: dict):
         self.config = config
-        # Local-only search: no headless browser, no external paid APIs
+        # Local-first: prefer Crawl4AI + headless when available, otherwise fallback to requests/BS4
+        self.crawler_available = False
+        self.crawler_class = None
+        self.crawler_import_error = None
+        self.crawler = None  # Set for compatibility with cleanup()
+        try:
+            from crawl4ai import AsyncWebCrawler  # type: ignore
+            self.crawler_class = AsyncWebCrawler
+            self.crawler_available = True
+        except Exception as e:
+            # Graceful fallback path if crawl4ai or playwright not installed
+            self.crawler_import_error = str(e)
+            self.crawler_available = False
     
     @property
     def name(self) -> str:
@@ -42,7 +54,7 @@ class SearchTool(BaseTool):
     
     @property
     def description(self) -> str:
-        return "Revolutionary web search using Crawl4AI + Local OLLAMA for deep content extraction with Tavily as intelligent fallback"
+        return "Local-first web search using Crawl4AI + requests/BeautifulSoup for deep content extraction (no external APIs)"
     
     @property
     def parameters(self) -> dict:
@@ -67,7 +79,72 @@ class SearchTool(BaseTool):
             "required": ["query"]
         }
     
-    # Removed Crawl4AI initialization: using lightweight requests + BeautifulSoup approach only
+    # Helper: run Crawl4AI against a list of URLs concurrently
+    async def _crawl_urls_with_crawl4ai(self, urls: List[str], max_concurrency: int = 3) -> List[dict]:
+        if not self.crawler_available or not urls:
+            return []
+        results: List[dict] = []
+        sem = asyncio.Semaphore(max_concurrency)
+
+        async def _crawl_single(url: str):
+            async with sem:
+                try:
+                    # Create a fresh crawler instance per execute() to avoid cross-event-loop issues
+                    async with self.crawler_class() as crawler:
+                        crawl_result = await crawler.arun(url)
+
+                        # Try to extract sensible fields regardless of crawl4ai version
+                        title = None
+                        content = None
+                        # Common attributes across versions
+                        for attr in ["markdown", "content", "text", "clean_text"]:
+                            if hasattr(crawl_result, attr) and getattr(crawl_result, attr):
+                                content = getattr(crawl_result, attr)
+                                break
+                        if hasattr(crawl_result, "title") and getattr(crawl_result, "title"):
+                            title = getattr(crawl_result, "title")
+                        if not title and hasattr(crawl_result, "metadata"):
+                            meta = getattr(crawl_result, "metadata") or {}
+                            title = meta.get("title")
+
+                        text = content if isinstance(content, str) else ""
+                        # Fallback to HTML to text if needed
+                        if not text and hasattr(crawl_result, "html") and getattr(crawl_result, "html"):
+                            try:
+                                from bs4 import BeautifulSoup
+                                psoup = BeautifulSoup(getattr(crawl_result, "html"), 'html.parser')
+                                text = psoup.get_text(separator=' ', strip=True)
+                            except Exception:
+                                text = ""
+
+                        # Derive title if missing
+                        if not title:
+                            try:
+                                from bs4 import BeautifulSoup
+                                psoup = BeautifulSoup(getattr(crawl_result, "html", "") or "", 'html.parser')
+                                title = (psoup.title.string.strip() if psoup.title and psoup.title.string else url)[:200]
+                            except Exception:
+                                title = url
+
+                        word_count = len((text or "").split())
+
+                        results.append({
+                            'url': url,
+                            'title': title[:200] if title else url,
+                            'content': (text or "")[:4000],  # trim to keep payloads lean
+                            'key_facts': [],
+                            'urls': [url],
+                            'extraction_success': True,
+                            'word_count': word_count,
+                            'authority': self._assess_source_authority(url),
+                            'source': 'crawl4ai'
+                        })
+                except Exception:
+                    # Ignore individual URL failures; fall back will add coverage
+                    return
+
+        await asyncio.gather(*[_crawl_single(u) for u in urls])
+        return results
     
     def _get_search_urls(self, query: str, max_results: int = 5) -> List[str]:
         """Generate SMART search URLs based on query intelligence"""
@@ -284,33 +361,79 @@ class SearchTool(BaseTool):
             print(f"⚠️  Free fallback failed: {e}")
             return []
 
-    # Removed Tavily fallback: using free DuckDuckGo scraping only (local-only behavior)
+    # No Tavily fallback: purely local behavior
     
     async def execute(self, query: str, max_results: int = 5, deep_extract: bool = True) -> List[dict]:
-        """Local-only web search using DuckDuckGo HTML + requests/BeautifulSoup. No Crawl4AI, no Tavily."""
+        """Local-first web search: DuckDuckGo discovery + Crawl4AI content extraction when available."""
         try:
             print(f"🚀 Starting local search for: '{query}'")
             print(f"📋 Target: {max_results} results, Deep extract: {deep_extract}")
 
-            # Primary: DuckDuckGo HTML scrape + per-page content fetch (already implemented below)
-            results = self._fallback_to_duckduckgo_scrape(query, max_results)
+            # Step 1: Discover candidate URLs using DuckDuckGo HTML (local and reliable)
+            discovered = self._fallback_to_duckduckgo_scrape(query, max_results * 2)
+            candidate_urls = [r.get('url') for r in discovered if r.get('url')]
+            candidate_urls = [u for u in candidate_urls if self._is_quality_url(u)]
+
+            # Step 2: Prefer Crawl4AI for deep extraction if available
+            crawl4ai_results: List[dict] = []
+            if deep_extract and self.crawler_available and candidate_urls:
+                try:
+                    crawl4ai_results = await self._crawl_urls_with_crawl4ai(candidate_urls[:max_results])
+                    if crawl4ai_results:
+                        print(f"🕷️  Crawl4AI extracted {len(crawl4ai_results)} pages")
+                except Exception as e:
+                    print(f"⚠️  Crawl4AI failed, falling back to simple fetch: {e}")
+
+            # Step 3: If Crawl4AI not available or returned too few, use simple per-page fetch for remaining
+            results: List[dict] = []
+            used_urls = set(r.get('url') for r in crawl4ai_results)
+            results.extend(crawl4ai_results)
+
+            needed = max(0, max_results - len(results))
+            if needed > 0:
+                # Use simple requests fetch for remaining URLs
+                simple_targets = [u for u in candidate_urls if u not in used_urls][:needed]
+                from bs4 import BeautifulSoup
+                session = requests.Session()
+                headers = {"User-Agent": self.config.get('search', {}).get('user_agent', "Mozilla/5.0 (compatible; Ollama Agent)")}
+                for url in simple_targets:
+                    try:
+                        pr = session.get(url, headers=headers, timeout=15)
+                        if pr.status_code != 200:
+                            continue
+                        psoup = BeautifulSoup(pr.text, 'html.parser')
+                        text = psoup.get_text(separator=' ', strip=True)[:4000]
+                        title = (psoup.title.string.strip() if psoup.title and psoup.title.string else url)[:200]
+                        results.append({
+                            'url': url,
+                            'title': title,
+                            'content': text,
+                            'key_facts': [],
+                            'urls': [url],
+                            'extraction_success': True,
+                            'word_count': len(text.split()),
+                            'authority': self._assess_source_authority(url),
+                            'source': 'requests_bs4'
+                        })
+                    except Exception:
+                        continue
 
             if not results:
-                print("⚠️ No results found via local scrape")
+                print("⚠️ No results found via local crawling")
                 return []
 
-            # Evaluate and lightly refine key facts using simple heuristics (no remote LLM)
-            refined = []
+            # Step 4: Evaluate and lightly refine key facts using simple heuristics (no remote LLM)
+            refined: List[dict] = []
             query_words = [w.lower() for w in query.split() if len(w) > 3]
             for item in results[:max_results]:
                 content = item.get('content', '') or ''
                 lines = [line.strip() for line in content.split('\n') if line.strip()]
-                key_facts = []
-                for line in lines[:50]:
+                key_facts: List[str] = []
+                for line in lines[:80]:
                     lower = line.lower()
-                    if (any(qw in lower for qw in query_words) or any(ch.isdigit() for ch in line)) and 20 <= len(line) <= 200:
+                    if (any(qw in lower for qw in query_words) or any(ch.isdigit() for ch in line)) and 20 <= len(line) <= 220:
                         key_facts.append(line)
-                item['key_facts'] = (item.get('key_facts') or []) + key_facts[:5]
+                item['key_facts'] = (item.get('key_facts') or []) + key_facts[:6]
                 refined.append(item)
 
             print(f"✅ Local search completed with {len(refined)} results")
@@ -322,6 +445,10 @@ class SearchTool(BaseTool):
     
     async def cleanup(self):
         """Clean up the crawler when done"""
-        if self.crawler:
-            await self.crawler.close()
+        try:
+            if self.crawler:
+                await self.crawler.close()
+        except Exception:
+            pass
+        finally:
             self.crawler = None

@@ -675,7 +675,9 @@ class PersistentWebSocketOrchestrator(DeepResearchOrchestrator):
                 "progress": 100,
                 "findings_count": len(deep_result.get("findings", [])),
                 "parallel_execution": True,
-                "message": f"✅ {hunter_type.replace('_', ' ').title()} completed in {execution_time:.1f}s"
+                "message": f"✅ {hunter_type.replace('_', ' ').title()} completed in {execution_time:.1f}s",
+                # Include textual result so frontend can render Agent Contributions
+                "result": deep_result.get("specialized_result", "")
             })
             
             return {
