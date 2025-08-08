@@ -578,7 +578,7 @@ class PersistentWebSocketOrchestrator(DeepResearchOrchestrator):
         await self.send_update("orchestration_complete", {
             "final_result": final_result,
             "agent_results": results,
-            "total_time": time.time(),
+            "total_time": time.time() - self.session.start_time,
             "research_type": "parallel_deep_research",
             "parallel_execution": True
         })
@@ -781,7 +781,12 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     try:
         while True:
             # Wait for messages from client
-            data = await websocket.receive_text()
+            try:
+                data = await websocket.receive_text()
+            except Exception as e:
+                # Gracefully handle closed/invalid connections
+                print(f"⚠️  WebSocket receive error for {client_id[:8]}: {e}")
+                break
             message = json.loads(data)
             
             if message["type"] == "start_research":
@@ -836,7 +841,15 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 # Load active sessions
                 user_id = message["data"].get("user_id")
                 if user_id:
-                    if SUPABASE_ENABLED:
+                    # Validate UUID format to avoid Supabase 22P02 errors
+                    def _is_valid_uuid(value: str) -> bool:
+                        try:
+                            uuid.UUID(str(value))
+                            return True
+                        except Exception:
+                            return False
+
+                    if SUPABASE_ENABLED and _is_valid_uuid(user_id):
                         result = await supabase_client.get_active_sessions(user_id)
                         if result["error"]:
                             print(f"❌ Failed to load sessions from Supabase: {result['error']}")
@@ -849,12 +862,12 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                                     "status": session["status"],
                                     "current_phase": session["current_phase"],
                                     "progress": session["progress"],
-                                    "start_time": session["start_time"]
+                                    "start_time": session.get("start_time")
                                 }
                                 for session in result["data"]
                             ]
                             print(f"📋 Loaded {len(user_sessions)} active sessions from Supabase for user {user_id[:8]}")
-                    else:
+                    elif not SUPABASE_ENABLED:
                         user_sessions = [
                             {
                                 "session_id": s["session_id"],
@@ -866,6 +879,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                             }
                             for s in LOCAL_SESSIONS.values() if s.get("user_id") == user_id and s.get("status") == "ongoing"
                         ]
+                    else:
+                        # Supabase enabled but invalid user_id (e.g., 'guest') → return empty list
+                        user_sessions = []
                 else:
                     user_sessions = []
                 
@@ -888,6 +904,10 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             session_manager.remove_client_from_session(session_id, client_id)
         
         print(f"Client {client_id} disconnected")
+    except Exception as e:
+        # Catch-all to avoid crashing ASGI app on unexpected errors
+        print(f"⚠️  Unexpected WebSocket error for {client_id[:8]}: {e}")
+        manager.disconnect(client_id)
 
 if __name__ == "__main__":
     print("🚀 Starting Make It Heavy API...")

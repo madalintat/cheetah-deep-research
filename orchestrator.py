@@ -216,51 +216,60 @@ class TaskOrchestrator:
     
     def _aggregate_consensus(self, responses: List[str], _results: List[Dict[str, Any]]) -> str:
         """
-        Use one final AI call to synthesize all agent responses into a coherent answer.
+        Use one final AI call to synthesize all agent responses into a coherent, well-formatted answer.
+        Attempts to use config.orchestrator.synthesis_prompt if provided; falls back to a sane default.
         """
         if len(responses) == 1:
             return responses[0]
-        
+
         # Create synthesis agent to combine all responses
         synthesis_agent = OllamaAgent(silent=True)
-        
+
         # Build agent responses section
         agent_responses_text = ""
         for i, response in enumerate(responses, 1):
             agent_responses_text += f"=== AGENT {i} RESPONSE ===\n{response}\n\n"
-        
-        # Enhanced synthesis prompt to avoid duplication
-        synthesis_prompt = f"""
-        You have {len(responses)} different research perspectives on the same topic. 
-        Your job is to create ONE unified, comprehensive answer.
 
-        CRITICAL RULES:
-        1. DO NOT repeat the same information multiple times
-        2. Synthesize unique insights from each perspective
-        3. Create a coherent narrative without redundancy
-        4. Focus on the most current and accurate information
-        5. Prioritize 2025 information over older data
-        6. Remove any duplicate facts or redundant statements
+        # Prefer structured synthesis prompt from config if available
+        orchestrator_cfg = self.config.get('orchestrator', {}) if hasattr(self, 'config') else {}
+        template = orchestrator_cfg.get('synthesis_prompt')
 
-        Agent Research Results:
-        {agent_responses_text}
+        if template:
+            try:
+                synthesis_prompt = template.format(
+                    num_responses=len(responses),
+                    agent_responses=agent_responses_text
+                )
+            except Exception:
+                # If template formatting fails, fallback to default
+                synthesis_prompt = None
+        else:
+            synthesis_prompt = None
 
-        Create a single, non-repetitive, comprehensive synthesis focusing on the most current information available.
-        """
-        
+        if not synthesis_prompt:
+            # Default, opinionated, deduplicated synthesis prompt
+            synthesis_prompt = (
+                f"You have {len(responses)} different research perspectives on the same query.\n"
+                "Create ONE unified, comprehensive answer with excellent section formatting (markdown),\n"
+                "clear bullet points, strict deduplication, and links consolidated in a Sources section.\n\n"
+                "Rules:\n"
+                "- Do NOT repeat information; merge duplicates.\n"
+                "- Prefer 2025 info.\n"
+                "- Provide actionable details (names, links, versions, pricing if present).\n\n"
+                f"Agent Research Results:\n{agent_responses_text}\n"
+                "Produce the final answer now."
+            )
+
         # Completely remove all tools from synthesis agent to force direct response
         synthesis_agent.tools = []
         synthesis_agent.tool_mapping = {}
-        
-        # Get the synthesized response
+
         try:
             final_answer = synthesis_agent.run(synthesis_prompt)
             return final_answer
         except Exception as e:
-            # Log the error for debugging
             print(f"\n🚨 SYNTHESIS FAILED: {str(e)}")
             print("📋 Falling back to concatenated responses\n")
-            # Fallback: if synthesis fails, concatenate responses
             combined = []
             for i, response in enumerate(responses, 1):
                 combined.append(f"=== Agent {i} Response ===")

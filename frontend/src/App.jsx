@@ -35,6 +35,7 @@ function App() {
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const wsRef = useRef(null)
+  const hasAutoReconnectedRef = useRef(false)
 
   // Check authentication status on mount
   useEffect(() => {
@@ -215,8 +216,26 @@ function App() {
           
           // Load active sessions after connection
           setTimeout(() => {
-            loadActiveSessions()
+            // Avoid sending invalid UUID like 'guest' when Supabase is configured
+            if (!isSupabaseConfigured() || (user && user.id && user.id !== 'guest')) {
+              loadActiveSessions()
+            }
           }, 100)
+
+          // Attempt automatic reconnection to an ongoing session from a prior refresh
+          try {
+            const ongoingSession = sessionStorage.getItem('ongoingSession')
+            if (ongoingSession && !hasAutoReconnectedRef.current) {
+              const sessionData = JSON.parse(ongoingSession)
+              if (sessionData?.sessionId) {
+                console.log('🔁 Auto-reconnecting to session from storage:', sessionData.sessionId)
+                reconnectToSession(sessionData.sessionId)
+                hasAutoReconnectedRef.current = true
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to parse ongoingSession from storage', e)
+          }
         }
 
         ws.onmessage = (event) => {
@@ -254,6 +273,18 @@ function App() {
       }
     }
   }, [user])
+
+  // Periodically refresh active sessions while connected
+  useEffect(() => {
+    if (!user || connectionStatus !== 'connected') return
+    const id = setInterval(() => {
+      // Avoid sending invalid UUID like 'guest' when Supabase is configured
+      if (!isSupabaseConfigured() || (user && user.id && user.id !== 'guest')) {
+        loadActiveSessions()
+      }
+    }, 2000)
+    return () => clearInterval(id)
+  }, [user, connectionStatus])
 
   // Save research to both Supabase and localStorage
   const saveResearchToHistory = async (researchData) => {
@@ -361,6 +392,15 @@ function App() {
         setCurrentSessionId(message.data.session_id)
         // Save session state for persistence
         setTimeout(() => saveSessionState(), 100)
+        // Optimistically add to active sessions list
+        setActiveSessions(prev => [{
+          session_id: message.data.session_id,
+          query: message.data.query,
+          status: 'ongoing',
+          current_phase: 'initializing',
+          progress: 0,
+          start_time: Date.now() / 1000
+        }, ...prev.filter(s => s.session_id !== message.data.session_id)])
         break
 
       case 'session_reconnected':
@@ -424,6 +464,13 @@ function App() {
               : agent
           )
         )
+        // Reflect progress in Active Sessions sidebar immediately
+        if (message.data.session_id) {
+          setActiveSessions(prev => prev.map(s => s.session_id === message.data.session_id
+            ? { ...s, progress: message.data.session_progress ?? s.progress, current_phase: 'executing', status: 'ongoing' }
+            : s
+          ))
+        }
         // Save session state for persistence
         setTimeout(() => saveSessionState(), 100)
         break
@@ -477,6 +524,26 @@ function App() {
 
       case 'synthesis_starting':
         setCurrentPhase('synthesizing')
+        // Update active session phase
+        if (currentSessionId) {
+          setActiveSessions(prev => prev.map(s => s.session_id === currentSessionId
+            ? { ...s, current_phase: 'synthesizing' }
+            : s
+          ))
+        }
+        break
+
+      case 'research_complete':
+        // Backend final completion event (post-save). Mirror orchestration_complete handling
+        setCurrentPhase('complete')
+        setFinalResult(message.data.result || message.data.final_result)
+        setIsSearching(false)
+        setCurrentSessionId(null)
+        setActiveSessions(prev => prev.map(s => s.session_id === currentSessionId
+          ? { ...s, status: 'completed', current_phase: 'complete', progress: 100 }
+          : s
+        ))
+        loadActiveSessions()
         break
 
       case 'orchestration_complete':
@@ -511,6 +578,12 @@ function App() {
           return updatedAgents
         })
         
+        // Mark session as completed in Active Sessions list (will disappear on next poll from Supabase)
+        setActiveSessions(prev => prev.map(s => s.session_id === currentSessionId
+          ? { ...s, status: 'completed', current_phase: 'complete', progress: 100 }
+          : s
+        ))
+        
         // Refresh active sessions list
         loadActiveSessions()
         break
@@ -519,6 +592,13 @@ function App() {
         setCurrentPhase('error')
         setIsSearching(false)
         console.error('Research error:', message.data.error)
+        // Reflect error state in Active Sessions
+        if (currentSessionId) {
+          setActiveSessions(prev => prev.map(s => s.session_id === currentSessionId
+            ? { ...s, status: 'failed', current_phase: 'error' }
+            : s
+          ))
+        }
         break
     }
   }

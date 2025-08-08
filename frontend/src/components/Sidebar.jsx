@@ -27,7 +27,17 @@ const Sidebar = ({
   }
 
   const formatSessionTime = (startTime) => {
-    const date = new Date(startTime * 1000) // Convert from seconds to milliseconds
+    let date
+    if (!startTime) return ''
+    if (typeof startTime === 'string') {
+      // ISO timestamp from Supabase
+      date = new Date(startTime)
+    } else if (typeof startTime === 'number') {
+      // Epoch seconds from local sessions
+      date = new Date(startTime * 1000)
+    } else {
+      date = new Date(startTime)
+    }
     return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',

@@ -352,8 +352,9 @@ The following responses represent specialized research from different hunter typ
         enhanced_responses = [synthesis_context] + all_responses
         
         # Use parent class aggregation method
+        # Ensure each item has a status so the aggregator doesn't KeyError
         final_result = self.aggregate_results([
-            {"response": response} for response in enhanced_responses
+            {"status": "success", "response": response} for response in enhanced_responses
         ])
         
         if not self.silent:
